@@ -1,0 +1,29 @@
+name: instachat
+description: Personal Instagram messaging app
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  http: ^1.2.2
+  web_socket_channel: ^3.0.1
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.4.1
+  image_picker: ^1.1.2
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.5
+  intl: ^0.19.0
+  shimmer: ^3.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
