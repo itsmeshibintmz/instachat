@@ -10,11 +10,16 @@ class ApiClient {
   final String baseUrl;
   late final String _wsUrl;
   WebSocketChannel? _wsChannel;
-  
-  ApiClient({this.baseUrl = 'http://10.0.2.2:8000'}) {
-    // For Android emulator, 10.0.2.2 maps to host machine's localhost
-    // For physical device, use your machine's local IP
-    _wsUrl = baseUrl.replaceFirst('http', 'ws');
+
+  ApiClient({String? baseUrl})
+      : baseUrl = baseUrl ??
+            // Android emulator → 10.0.2.2 maps to host machine localhost.
+            // iOS Simulator   → localhost resolves directly.
+            // Physical device → pass a custom IP via the settings screen.
+            (Platform.isAndroid
+                ? 'http://10.0.2.2:8000'
+                : 'http://localhost:8000') {
+    _wsUrl = this.baseUrl.replaceFirst('http', 'ws');
   }
 
   // ─── Auth ─────────────────────────────────────────────────────────────
@@ -93,6 +98,20 @@ class ApiClient {
         .toList();
   }
 
+  Future<Map<String, dynamic>> createThread(
+      List<int> userIds, String message) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/inbox/create'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'user_ids': userIds,
+        'message': message,
+      }),
+    );
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   // ─── Messages ─────────────────────────────────────────────────────────
 
   Future<List<MessageItem>> getMessages(String threadId,
@@ -140,6 +159,21 @@ class ApiClient {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> unreactToMessage(
+      String threadId, String messageId, String emoji) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/messages/unreact'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'thread_id': threadId,
+        'message_id': messageId,
+        'emoji': emoji,
+      }),
+    );
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<void> markSeen(String threadId, String messageId) async {
     await http.post(
       Uri.parse('$baseUrl/messages/$threadId/seen?message_id=$messageId'),
@@ -170,6 +204,20 @@ class ApiClient {
     );
     request.fields['thread_id'] = threadId;
     request.files.add(await http.MultipartFile.fromPath('file', video.path));
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> sendVoice(
+      String threadId, File audio) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/media/send/voice'),
+    );
+    request.fields['thread_id'] = threadId;
+    request.files.add(await http.MultipartFile.fromPath('file', audio.path));
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
