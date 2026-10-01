@@ -13,14 +13,21 @@ class ApiClient {
   late final String _wsUrl;
   WebSocketChannel? _wsChannel;
 
+  // Override at build time:
+  //   flutter run --dart-define=BASE_URL=http://192.168.1.2:8000
+  static const _envUrl = String.fromEnvironment('BASE_URL');
+
   ApiClient({String? baseUrl})
       : baseUrl = baseUrl ??
+            // Priority: dart-define BASE_URL → platform default
             // Android emulator → 10.0.2.2 maps to host machine localhost.
             // iOS Simulator   → localhost resolves directly.
-            // Physical device → pass a custom baseUrl from settings.
-            (Platform.isAndroid
-                ? 'http://10.0.2.2:8000'
-                : 'http://localhost:8000') {
+            // Physical device → pass --dart-define=BASE_URL=http://<mac-ip>:8000
+            (_envUrl.isNotEmpty
+                ? _envUrl
+                : (Platform.isAndroid
+                    ? 'http://10.0.2.2:8000'
+                    : 'http://localhost:8000')) {
     _wsUrl = this.baseUrl.replaceFirst('http', 'ws');
   }
 
