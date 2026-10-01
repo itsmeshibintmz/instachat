@@ -58,12 +58,33 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final savedUrl = prefs.getString(_kBaseUrl);
-    state = AppSettings(
-      baseUrl: (savedUrl != null && savedUrl.isNotEmpty)
-          ? savedUrl
-          : defaultBaseUrl(),
-      isLoaded: true,
-    );
+    final buildUrl = defaultBaseUrl();
+
+    // If there is a cloud URL baked into the APK at build time AND the saved
+    // URL is a local/emulator address (from an old dev session), automatically
+    // upgrade to the cloud URL so the user doesn't get a silent connection
+    // error just because they previously tested with an ADB tunnel.
+    final savedIsLocal = savedUrl != null &&
+        (savedUrl.contains('10.0.2.2') ||
+            savedUrl.contains('127.0.0.1') ||
+            savedUrl.contains('localhost'));
+    final buildIsCloud = _kBuildUrl.isNotEmpty &&
+        !_kBuildUrl.contains('localhost') &&
+        !_kBuildUrl.contains('127.0.0.1') &&
+        !_kBuildUrl.contains('10.0.2.2');
+
+    String effectiveUrl;
+    if (savedUrl != null && savedUrl.isNotEmpty && !(savedIsLocal && buildIsCloud)) {
+      effectiveUrl = savedUrl;
+    } else {
+      effectiveUrl = buildUrl;
+      // Clear the stale local entry so it doesn't come back
+      if (savedIsLocal && buildIsCloud) {
+        await prefs.remove(_kBaseUrl);
+      }
+    }
+
+    state = AppSettings(baseUrl: effectiveUrl, isLoaded: true);
   }
 
   Future<void> setBaseUrl(String url) async {

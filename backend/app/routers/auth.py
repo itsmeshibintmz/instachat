@@ -1,7 +1,9 @@
 """
 Authentication router — login, logout, session status.
 """
-from fastapi import APIRouter, HTTPException
+import asyncio
+
+from fastapi import APIRouter
 
 from app.models.schemas import LoginRequest, LoginResponse, SessionStatus
 from app.services.instagram import instagram_service
@@ -14,14 +16,20 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def login(request: LoginRequest):
     """
     Login to Instagram.
-    
-    If 2FA is enabled, the first call will return requires_2fa=True.
+
+    instagram_service.login() is synchronous and can take 15-60 s
+    (instagrapi makes several network calls to Instagram).
+    Run it in a thread so the event loop stays free for health checks,
+    WebSocket pings, and UptimeRobot during the wait.
+
+    If 2FA is enabled, the first call returns requires_2fa=True.
     Send the verification_code in a second request.
     """
-    result = instagram_service.login(
-        username=request.username,
-        password=request.password,
-        verification_code=request.verification_code,
+    result = await asyncio.to_thread(
+        instagram_service.login,
+        request.username,
+        request.password,
+        request.verification_code,
     )
 
     # Start polling if login succeeded

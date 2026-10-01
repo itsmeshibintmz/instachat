@@ -111,14 +111,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       }
     } catch (e) {
-      final isTimeout = e.toString().contains('TimeoutException');
-      state = state.copyWith(
-        isLoading: false,
-        error: isTimeout
-            ? 'Login timed out (90 s). Instagram may be slow — try again.'
-            : 'Connection error — could not reach ${_api.baseUrl}\n'
-                'Check Settings → Backend URL.',
-      );
+      final msg = e.toString();
+      final String errorText;
+      if (msg.contains('TimeoutException')) {
+        errorText =
+            'Login timed out — Instagram is taking too long to respond.\nTry again in a moment.';
+      } else if (msg.contains('SocketException') ||
+          msg.contains('Connection refused') ||
+          msg.contains('Failed host lookup')) {
+        errorText =
+            'Cannot reach server at ${_api.baseUrl}\nCheck Settings → Backend URL.';
+      } else {
+        errorText =
+            'Connection error — could not reach ${_api.baseUrl}\n'
+            'Check Settings → Backend URL.';
+      }
+      state = state.copyWith(isLoading: false, error: errorText);
     }
   }
 
