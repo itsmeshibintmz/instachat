@@ -171,6 +171,29 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     }
   }
 
+  Future<void> sendVoice(File audio) async {
+    state = state.copyWith(isSending: true, error: null);
+    try {
+      await _api.sendVoice(state.threadId, audio);
+      await fetchMessages();
+      state = state.copyWith(isSending: false);
+    } catch (e) {
+      state = state.copyWith(
+        isSending: false,
+        error: 'Failed to send voice message: $e',
+      );
+    }
+  }
+
+  Future<void> unreactToMessage(String messageId, String emoji) async {
+    try {
+      await _api.unreactToMessage(state.threadId, messageId, emoji);
+      await fetchMessages();
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to remove reaction: $e');
+    }
+  }
+
   Future<void> refreshMessages() async {
     try {
       final messages = await _api.getMessages(state.threadId);
