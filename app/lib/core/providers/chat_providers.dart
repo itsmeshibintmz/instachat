@@ -75,28 +75,40 @@ class MessagesState {
   final String threadId;
   final List<MessageItem> messages;
   final bool isLoading;
+  final bool isLoadingMore;   // fetching older messages
   final bool isSending;
+  final bool hasOlder;        // more messages available above
+  final String? cursor;       // pagination cursor for next older page
   final String? error;
 
   const MessagesState({
     required this.threadId,
     this.messages = const [],
     this.isLoading = false,
+    this.isLoadingMore = false,
     this.isSending = false,
+    this.hasOlder = false,
+    this.cursor,
     this.error,
   });
 
   MessagesState copyWith({
     List<MessageItem>? messages,
     bool? isLoading,
+    bool? isLoadingMore,
     bool? isSending,
+    bool? hasOlder,
+    String? cursor,
     String? error,
   }) {
     return MessagesState(
       threadId: threadId,
       messages: messages ?? this.messages,
       isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       isSending: isSending ?? this.isSending,
+      hasOlder: hasOlder ?? this.hasOlder,
+      cursor: cursor ?? this.cursor,
       error: error,
     );
   }
@@ -111,12 +123,44 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
   Future<void> fetchMessages() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final messages = await _api.getMessages(state.threadId);
-      state = state.copyWith(messages: messages, isLoading: false);
+      final page = await _api.getMessages(state.threadId);
+      state = state.copyWith(
+        messages: page.messages,
+        hasOlder: page.hasOlder,
+        cursor: page.cursor,
+        isLoading: false,
+      );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to load messages: $e',
+      );
+    }
+  }
+
+  /// Loads the next page of older messages and prepends them to the list.
+  Future<void> loadOlderMessages() async {
+    if (!state.hasOlder || state.isLoadingMore || state.cursor == null) return;
+
+    state = state.copyWith(isLoadingMore: true, error: null);
+    try {
+      final page = await _api.getMessages(
+        state.threadId,
+        cursor: state.cursor,
+      );
+      // Append older messages (they come after the existing ones since list is
+      // reverse-sorted newest-first; older messages go at the end).
+      final combined = [...state.messages, ...page.messages];
+      state = state.copyWith(
+        messages: combined,
+        hasOlder: page.hasOlder,
+        cursor: page.cursor,
+        isLoadingMore: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoadingMore: false,
+        error: 'Failed to load older messages: $e',
       );
     }
   }
@@ -198,8 +242,12 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
 
   Future<void> refreshMessages() async {
     try {
-      final messages = await _api.getMessages(state.threadId);
-      state = state.copyWith(messages: messages);
+      final page = await _api.getMessages(state.threadId);
+      state = state.copyWith(
+        messages: page.messages,
+        hasOlder: page.hasOlder,
+        cursor: page.cursor,
+      );
     } catch (_) {}
   }
 }

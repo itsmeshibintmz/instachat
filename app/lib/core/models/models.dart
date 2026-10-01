@@ -169,6 +169,35 @@ class Reaction {
   }
 }
 
+/// Wraps a paginated messages response from the backend.
+class MessagesPage {
+  final List<MessageItem> messages;
+  final bool hasOlder;
+  final String? cursor;
+  final List<UserInfo> users;
+
+  const MessagesPage({
+    required this.messages,
+    required this.hasOlder,
+    this.cursor,
+    required this.users,
+  });
+
+  factory MessagesPage.fromJson(Map<String, dynamic> json) {
+    return MessagesPage(
+      messages: (json['messages'] as List<dynamic>)
+          .map((m) => MessageItem.fromJson(m as Map<String, dynamic>))
+          .toList(),
+      hasOlder: json['has_older'] as bool? ?? false,
+      cursor: json['cursor'] as String?,
+      users: (json['users'] as List<dynamic>?)
+              ?.map((u) => UserInfo.fromJson(u as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+}
+
 class MessageItem {
   final String messageId;
   final int userId;
