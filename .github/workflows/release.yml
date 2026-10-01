@@ -1,0 +1,193 @@
+name: Release
+
+permissions:
+  contents: write
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Trigger: go to Actions → Release → Run workflow
+# Fill in version + changelog — everything else is automatic.
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version  (e.g. 1.2.0)"
+        required: true
+        type: string
+      changelog:
+        description: "What's new  (Markdown supported)"
+        required: true
+        type: string
+
+# ── Jobs ─────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── Build Android release APK ─────────────────────────────────────────────
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.x'
+          channel: stable
+          cache: true
+
+      - name: Set version in pubspec.yaml
+        run: |
+          sed -i "s/^version:.*/version: ${{ inputs.version }}+$(date +%s)/" app/pubspec.yaml
+
+      - run: flutter pub get
+        working-directory: app
+
+      - name: Build release APK
+        run: flutter build apk --release
+        working-directory: app
+
+      - name: Rename APK → instachat.apk
+        run: |
+          mkdir -p dist
+          cp app/build/app/outputs/flutter-apk/app-release.apk dist/instachat.apk
+
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: android-apk
+          path: dist/instachat.apk
+          retention-days: 1
+
+  # ── Build iOS unsigned IPA ────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.x'
+          channel: stable
+          cache: true
+
+      - name: Set version in pubspec.yaml
+        run: |
+          sed -i '' "s/^version:.*/version: ${{ inputs.version }}+$(date +%s)/" app/pubspec.yaml
+
+      - run: flutter pub get
+        working-directory: app
+
+      - name: Build iOS IPA (no codesign)
+        run: flutter build ipa --no-codesign
+        working-directory: app
+
+      - name: Rename IPA → instachat.ipa
+        run: |
+          mkdir -p dist
+          IPA=$(find app/build/ios/ipa -name "*.ipa" | head -1)
+          cp "$IPA" dist/instachat.ipa
+
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: ios-ipa
+          path: dist/instachat.ipa
+          retention-days: 1
+
+  # ── Publish GitHub Release ────────────────────────────────────────────────
+  publish:
+    name: Publish Release
+    needs: [build-android, build-ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: dist
+
+      - name: Download IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: dist
+
+      - name: Create git tag v${{ inputs.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ inputs.version }}" -m "InstaChat v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: "💬 InstaChat v${{ inputs.version }}"
+          make_latest: true
+          draft: false
+          prerelease: false
+          body: |
+            <div align="center">
+
+            # 💬 InstaChat v${{ inputs.version }}
+            **Your Instagram DMs. Without Instagram.**
+
+            [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-lightgrey?style=flat-square)](https://flutter.dev)
+            [![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?style=flat-square&logo=flutter)](https://flutter.dev)
+
+            </div>
+
+            ---
+
+            ## 🆕 What's new
+
+            ${{ inputs.changelog }}
+
+            ---
+
+            ## 📲 Install
+
+            ### 🤖 Android
+            1. Download **`instachat.apk`** from the assets below
+            2. On your phone → **Settings → Apps → Special app access → Install unknown apps** → enable for your browser or Files app
+            3. Open the downloaded APK and tap **Install**
+
+            ### 🍎 iOS  *(sideload — unsigned)*
+            1. Download **`instachat.ipa`** from the assets below
+            2. Install using [**AltStore**](https://altstore.io) *(free)* or [**Sideloadly**](https://sideloadly.io)
+
+            ---
+
+            ## ⚙️ Backend setup
+
+            The app needs the Python backend running on your Mac:
+
+            ```bash
+            cd backend
+            source .venv/bin/activate
+            uvicorn app.main:app --host 0.0.0.0 --port 8000
+            ```
+
+            **Connect your phone via USB**, then forward the port so the app can reach the backend:
+
+            ```bash
+            # Android
+            adb reverse tcp:8000 tcp:8000
+
+            # iOS (after Simulator launch or USB trust)
+            iproxy 8000 8000
+            ```
+
+            ---
+
+            > ⚠️ Uses Instagram's unofficial API — personal use only. Not affiliated with Meta or Instagram.
+          files: |
+            dist/instachat.apk
+            dist/instachat.ipa
