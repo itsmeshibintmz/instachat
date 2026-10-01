@@ -80,28 +80,48 @@ class InstagramService:
         from instagrapi.exceptions import ChallengeRequired
         raise ChallengeRequired("challenge_code_required")
 
-    def login(self, username: str, password: str, verification_code: Optional[str] = None) -> LoginResponse:
-        """Login to Instagram with optional 2FA code or challenge code."""
+    def _make_client(self) -> Client:
+        """Create a properly configured instagrapi Client for server use."""
+        cl = Client()
+        cl.delay_range = [0, 1]          # small delay, not the 1-3 s default
+        cl.request_timeout = 30          # give up per sub-request after 30 s
+        cl.challenge_code_handler = self._raise_challenge_handler  # no input()
+        return cl
 
-        # ── Phase 2: resolve a pending challenge with the user's code ─────
+    def login(self, username: str, password: str, verification_code: Optional[str] = None) -> LoginResponse:
+        """
+        Login to Instagram.  Handles all scenarios:
+
+        Scenario A — No 2FA, no challenge:
+            POST /auth/login(user, pass) → success
+
+        Scenario B — TOTP 2FA (authenticator app):
+            POST /auth/login(user, pass)         → {requires_2fa: true}
+            POST /auth/login(user, pass, code)   → success
+
+        Scenario C — Email/SMS challenge (common for cloud IPs):
+            POST /auth/login(user, pass)         → {requires_challenge: true}
+              (email sent automatically)
+            POST /auth/login(user, pass, code)   → success
+
+        Scenario D — Challenge then 2FA (cloud IP + 2FA account):
+            POST /auth/login(user, pass)         → {requires_challenge: true}
+            POST /auth/login(user, pass, code)   → {requires_2fa: true}
+            POST /auth/login(user, pass, code2)  → success
+
+        Scenario E — Saved session (same Render instance, not redeployed):
+            POST /auth/login(user, pass) → success immediately
+        """
+        # ── Phase 2: resolve a pending email/SMS challenge ────────────────
         if verification_code and self._pending_challenge and self._client:
             return self._resolve_challenge(username, verification_code)
 
         # ── Start fresh ───────────────────────────────────────────────────
         self._pending_challenge = None
-        self._client = Client()
-        # Keep a small delay to avoid triggering Instagram's rate limiter,
-        # but don't add unnecessary seconds to every sub-request.
-        self._client.delay_range = [0, 1]
-        # Tell instagrapi's internal HTTP client to give up after 30 s per
-        # sub-request rather than hanging indefinitely.
-        self._client.request_timeout = 30
-        # Override the default challenge handler which calls input() and
-        # raises EOFError on a headless server — use our own instead.
-        self._client.challenge_code_handler = self._raise_challenge_handler
+        self._client = self._make_client()
         self._session_file = SESSION_DIR / f"{username}_session.json"
 
-        # Try to reuse existing session
+        # ── Try saved session first (fast, avoids full Instagram auth) ────
         if self._session_file.exists():
             try:
                 self._client.load_settings(self._session_file)
@@ -110,17 +130,19 @@ class InstagramService:
                 logger.info(f"Logged in via saved session: {username}")
                 return self._build_login_response(success=True)
             except Exception as e:
-                logger.warning(f"Session reuse failed: {e}, trying fresh login")
-                self._client = Client()
-                self._client.delay_range = [1, 3]
+                logger.warning(f"Session reuse failed: {e} — trying fresh login")
+                # Keep all settings on the existing client for fresh login
+                self._client = self._make_client()
 
-        # Fresh login
+        # ── Fresh login ───────────────────────────────────────────────────
+        return self._do_login(username, password, verification_code)
+
+    def _do_login(self, username: str, password: str, verification_code: Optional[str]) -> LoginResponse:
+        """Attempt a fresh instagrapi login and map every exception to a LoginResponse."""
         try:
-            if verification_code:
-                self._client.login(username, password, verification_code=verification_code)
-            else:
-                self._client.login(username, password)
-
+            self._client.login(username, password,
+                               **({"verification_code": verification_code}
+                                  if verification_code else {}))
             self._finalize_login(username)
             self._save_session()
             logger.info(f"Fresh login successful: {username}")
@@ -131,56 +153,81 @@ class InstagramService:
             return LoginResponse(
                 success=False,
                 requires_2fa=True,
-                message="Two-factor authentication required. Please provide the verification code.",
+                message="Enter the 6-digit code from your authenticator app.",
             )
         except BadPassword:
-            return LoginResponse(success=False, message="Invalid password.")
+            return LoginResponse(success=False, message="Incorrect password.")
         except ChallengeRequired:
-            # Store challenge state so Phase 2 can resolve it
-            self._pending_challenge = self._client.last_json
-            # challenge_resolve sends the email/SMS code and then calls our
-            # handler which raises — that's expected; the code is now in the
-            # user's inbox.
-            try:
-                self._client.challenge_resolve(self._pending_challenge)
-            except ChallengeRequired:
-                pass  # expected — email sent, code not yet provided
-            except Exception as e:
-                logger.warning(f"challenge_resolve error (email may still have been sent): {e}")
-
-            return LoginResponse(
-                success=False,
-                requires_challenge=True,
-                message="Instagram sent a verification code to your email. Enter it below to continue.",
-            )
+            return self._handle_challenge()
         except PleaseWaitFewMinutes:
             return LoginResponse(
                 success=False,
-                message="Too many login attempts. Please wait a few minutes and try again.",
+                message="Too many attempts. Wait a few minutes and try again.",
             )
         except Exception as e:
             logger.error(f"Login failed: {e}")
             return LoginResponse(success=False, message=f"Login failed: {str(e)}")
 
-    def _resolve_challenge(self, username: str, code: str) -> LoginResponse:
-        """Phase 2: submit the user-provided code to resolve the challenge."""
-        def code_handler(u, c):
-            return code
-
-        self._client.challenge_code_handler = code_handler
+    def _handle_challenge(self) -> LoginResponse:
+        """
+        Instagram sent an email/SMS challenge.
+        challenge_resolve() sends the code to the user's inbox, then calls
+        our handler which raises — that's expected at this stage.
+        """
+        self._pending_challenge = self._client.last_json
         try:
             self._client.challenge_resolve(self._pending_challenge)
+        except ChallengeRequired:
+            pass   # expected — email sent, handler raised before submitting
+        except Exception as e:
+            logger.warning(f"challenge_resolve error (email may still have been sent): {e}")
+
+        return LoginResponse(
+            success=False,
+            requires_challenge=True,
+            message="Instagram sent a 6-digit code to your email. Enter it below.",
+        )
+
+    def _resolve_challenge(self, username: str, code: str) -> LoginResponse:
+        """
+        Phase 2: submit the email/SMS code to resolve the challenge.
+        After a successful challenge, Instagram may still require 2FA
+        (Scenario D) — handle that too.
+        """
+        self._client.challenge_code_handler = lambda u, c: code
+        try:
+            self._client.challenge_resolve(self._pending_challenge)
+            # Challenge accepted — check if Instagram now wants 2FA
             self._pending_challenge = None
             self._finalize_login(username)
             self._save_session()
-            logger.info(f"Challenge resolved successfully for {username}")
+            logger.info(f"Challenge resolved and logged in: {username}")
             return self._build_login_response(success=True)
+
+        except TwoFactorRequired:
+            # Challenge passed, but the account also has TOTP 2FA enabled.
+            # The next login call with verification_code will do fresh login
+            # with that code (pending_challenge is now None).
+            self._pending_challenge = None
+            return LoginResponse(
+                success=False,
+                requires_2fa=True,
+                message="Challenge passed ✓ — now enter your authenticator app code.",
+            )
+        except ChallengeRequired:
+            # Wrong code — challenge still pending, let user retry
+            self._pending_challenge = self._client.last_json
+            return LoginResponse(
+                success=False,
+                requires_challenge=True,
+                message="Incorrect code — check your email and try again.",
+            )
         except Exception as e:
             logger.error(f"Challenge resolve failed: {e}")
             self._pending_challenge = None
             return LoginResponse(
                 success=False,
-                message=f"Incorrect code — please check your email and try again.",
+                message=f"Verification failed: {str(e)}",
             )
 
     def logout(self):
