@@ -173,24 +173,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                     const SizedBox(height: 16),
 
-                    // 2FA Code field (shown when needed)
-                    if (authState.requires2FA) ...[
+                    // Verification code field — shown for 2FA or email challenge
+                    if (authState.requires2FA || authState.requiresChallenge) ...[
                       TextField(
                         controller: _codeController,
-                        decoration: const InputDecoration(
-                          hintText: '2FA Verification Code',
-                          prefixIcon: Icon(Icons.security_rounded),
+                        decoration: InputDecoration(
+                          hintText: authState.requiresChallenge
+                              ? 'Email verification code'
+                              : '2FA Verification Code',
+                          prefixIcon: Icon(authState.requiresChallenge
+                              ? Icons.mark_email_read_rounded
+                              : Icons.security_rounded),
                         ),
                         keyboardType: TextInputType.number,
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => _handleLogin(),
+                        autofocus: true,
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        'Enter the code from your authenticator app',
-                        style: theme.textTheme.bodySmall,
-                        textAlign: TextAlign.center,
-                      ),
+                      // Show backend-provided message (email vs authenticator)
+                      if (authState.challengeMessage != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded,
+                                  size: 16, color: cs.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  authState.challengeMessage!,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: cs.onPrimaryContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 16),
                     ],
 

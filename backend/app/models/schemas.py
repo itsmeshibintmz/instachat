@@ -26,6 +26,8 @@ class LoginResponse(BaseModel):
     profile_pic_url: Optional[str] = None
     message: Optional[str] = None
     requires_2fa: bool = False
+    # Instagram sent an email/SMS challenge — user must enter the code
+    requires_challenge: bool = False
 
 
 class SessionStatus(BaseModel):
