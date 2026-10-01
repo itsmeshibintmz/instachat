@@ -73,12 +73,15 @@ async def unreact_to_message(request: ReactionRequest):
 
 
 @router.post("/{thread_id}/seen")
-async def mark_as_seen(thread_id: str, message_id: str):
-    """Mark messages in a thread as seen."""
+async def mark_as_seen(
+    thread_id: str,
+    message_id: Optional[str] = Query(None, description="Last seen message ID (optional)"),
+):
+    """Mark all messages in a thread as seen."""
     if not instagram_service.is_logged_in:
         raise HTTPException(status_code=401, detail="Not logged in")
 
     success = instagram_service.mark_seen(
-        thread_id=thread_id, message_id=message_id
+        thread_id=thread_id, message_id=message_id or ""
     )
     return {"success": success}

@@ -26,8 +26,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(messagesProvider(widget.thread.threadId).notifier).fetchMessages();
+    Future.microtask(() async {
+      final notifier =
+          ref.read(messagesProvider(widget.thread.threadId).notifier);
+      await notifier.fetchMessages();
+      // Tell Instagram we've read this thread (clears unread badge, updates seen_at on other devices)
+      notifier.markAsSeen();
     });
 
     // Load older messages when user scrolls to the top of the list.
@@ -244,6 +248,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // Total item count: messages + optional "loading older" indicator at the top
     final itemCount = state.messages.length + (state.hasOlder ? 1 : 0);
 
+    // ── Read-receipt: find which message index shows "Seen" ──────────────
+    // "Seen" appears under the LATEST sent-by-me message that has been
+    // seen by at least one other participant.
+    int? seenMessageIndex;
+    if (state.seenAt.isNotEmpty) {
+      DateTime? maxSeen;
+      for (final dt in state.seenAt.values) {
+        if (maxSeen == null || dt.isAfter(maxSeen)) maxSeen = dt;
+      }
+      if (maxSeen != null) {
+        for (var i = 0; i < state.messages.length; i++) {
+          final m = state.messages[i]; // list is newest-first
+          if (m.isSentByMe && !m.timestamp.isAfter(maxSeen)) {
+            seenMessageIndex = i;
+            break; // first match = newest sent message that was seen
+          }
+        }
+      }
+    }
+
     return ListView.builder(
       controller: _scrollController,
       reverse: true, // Newest messages at bottom
@@ -292,6 +316,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             nextMessage.userId != message.userId ||
             nextMessage.timestamp.difference(message.timestamp).inMinutes > 5;
 
+        final showSeen = index == seenMessageIndex;
+
         return Column(
           children: [
             if (showDateSeparator)
@@ -307,6 +333,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onUnreact: (emoji) =>
                   _handleUnreact(message.messageId, emoji),
             ),
+            if (showSeen)
+              Padding(
+                padding: const EdgeInsets.only(right: 6, bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Icon(
+                      Icons.done_all_rounded,
+                      size: 13,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Seen',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         );
       },

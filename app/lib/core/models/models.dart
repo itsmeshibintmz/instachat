@@ -175,15 +175,30 @@ class MessagesPage {
   final bool hasOlder;
   final String? cursor;
   final List<UserInfo> users;
+  /// user-pk (string) → last datetime that user read a message in this thread.
+  /// Only contains entries for OTHER participants (not the logged-in user).
+  final Map<String, DateTime> seenAt;
 
   const MessagesPage({
     required this.messages,
     required this.hasOlder,
     this.cursor,
     required this.users,
+    this.seenAt = const {},
   });
 
   factory MessagesPage.fromJson(Map<String, dynamic> json) {
+    // Parse seen_at: { "12345": "2026-10-01T04:00:00.000Z", ... }
+    final rawSeenAt = json['seen_at'] as Map<String, dynamic>? ?? {};
+    final seenAt = <String, DateTime>{};
+    rawSeenAt.forEach((k, v) {
+      if (v is String) {
+        try {
+          seenAt[k] = DateTime.parse(v);
+        } catch (_) {}
+      }
+    });
+
     return MessagesPage(
       messages: (json['messages'] as List<dynamic>)
           .map((m) => MessageItem.fromJson(m as Map<String, dynamic>))
@@ -194,6 +209,7 @@ class MessagesPage {
               ?.map((u) => UserInfo.fromJson(u as Map<String, dynamic>))
               .toList() ??
           [],
+      seenAt: seenAt,
     );
   }
 }

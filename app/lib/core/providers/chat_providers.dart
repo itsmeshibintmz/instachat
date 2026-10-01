@@ -79,6 +79,9 @@ class MessagesState {
   final bool isSending;
   final bool hasOlder;        // more messages available above
   final String? cursor;       // pagination cursor for next older page
+  /// user-pk (string) → last datetime that user acknowledged messages.
+  /// Used to show "Seen" under the appropriate sent message.
+  final Map<String, DateTime> seenAt;
   final String? error;
 
   const MessagesState({
@@ -89,6 +92,7 @@ class MessagesState {
     this.isSending = false,
     this.hasOlder = false,
     this.cursor,
+    this.seenAt = const {},
     this.error,
   });
 
@@ -99,6 +103,7 @@ class MessagesState {
     bool? isSending,
     bool? hasOlder,
     String? cursor,
+    Map<String, DateTime>? seenAt,
     String? error,
   }) {
     return MessagesState(
@@ -109,6 +114,7 @@ class MessagesState {
       isSending: isSending ?? this.isSending,
       hasOlder: hasOlder ?? this.hasOlder,
       cursor: cursor ?? this.cursor,
+      seenAt: seenAt ?? this.seenAt,
       error: error,
     );
   }
@@ -128,6 +134,7 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
         messages: page.messages,
         hasOlder: page.hasOlder,
         cursor: page.cursor,
+        seenAt: page.seenAt,
         isLoading: false,
       );
     } catch (e) {
@@ -135,6 +142,15 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
         isLoading: false,
         error: 'Failed to load messages: $e',
       );
+    }
+  }
+
+  /// Tells Instagram that the current user has seen all messages in this thread.
+  Future<void> markAsSeen() async {
+    try {
+      await _api.markSeen(state.threadId);
+    } catch (_) {
+      // Non-fatal — silently ignore
     }
   }
 
@@ -247,6 +263,7 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
         messages: page.messages,
         hasOlder: page.hasOlder,
         cursor: page.cursor,
+        seenAt: page.seenAt,
       );
     } catch (_) {}
   }
