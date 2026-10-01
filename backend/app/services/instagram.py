@@ -65,22 +65,30 @@ class InstagramService:
 
     # ─── Authentication ──────────────────────────────────────────────────
 
+    # ── Challenge state (persists between the two login calls) ───────────────
+    # Phase 1: login() → ChallengeRequired → email sent → returns requires_challenge=True
+    # Phase 2: login(verification_code=...) → resolves challenge → returns success
+    _pending_challenge: Optional[dict] = None
+
     @staticmethod
-    def _server_challenge_handler(username: str, choice) -> str:
+    def _raise_challenge_handler(username: str, choice) -> str:
         """
-        Replace instagrapi's default challenge_code_handler which calls
-        input() — that blocks forever (or raises EOFError) on a headless
-        server like Render.  Raising ChallengeRequired here lets our
-        except block return a clean error message to the Flutter app.
+        Phase-1 handler: replaces instagrapi's input()-based default.
+        Called AFTER Instagram has already sent the email/SMS code, so
+        raising here is safe — the code is in the user's inbox.
         """
         from instagrapi.exceptions import ChallengeRequired
-        raise ChallengeRequired(
-            f"Instagram sent a security challenge to @{username}. "
-            "Open the Instagram app, approve the login attempt, then try signing in again."
-        )
+        raise ChallengeRequired("challenge_code_required")
 
     def login(self, username: str, password: str, verification_code: Optional[str] = None) -> LoginResponse:
-        """Login to Instagram with optional 2FA code."""
+        """Login to Instagram with optional 2FA code or challenge code."""
+
+        # ── Phase 2: resolve a pending challenge with the user's code ─────
+        if verification_code and self._pending_challenge and self._client:
+            return self._resolve_challenge(username, verification_code)
+
+        # ── Start fresh ───────────────────────────────────────────────────
+        self._pending_challenge = None
         self._client = Client()
         # Keep a small delay to avoid triggering Instagram's rate limiter,
         # but don't add unnecessary seconds to every sub-request.
@@ -90,7 +98,7 @@ class InstagramService:
         self._client.request_timeout = 30
         # Override the default challenge handler which calls input() and
         # raises EOFError on a headless server — use our own instead.
-        self._client.challenge_code_handler = self._server_challenge_handler
+        self._client.challenge_code_handler = self._raise_challenge_handler
         self._session_file = SESSION_DIR / f"{username}_session.json"
 
         # Try to reuse existing session
@@ -128,9 +136,22 @@ class InstagramService:
         except BadPassword:
             return LoginResponse(success=False, message="Invalid password.")
         except ChallengeRequired:
+            # Store challenge state so Phase 2 can resolve it
+            self._pending_challenge = self._client.last_json
+            # challenge_resolve sends the email/SMS code and then calls our
+            # handler which raises — that's expected; the code is now in the
+            # user's inbox.
+            try:
+                self._client.challenge_resolve(self._pending_challenge)
+            except ChallengeRequired:
+                pass  # expected — email sent, code not yet provided
+            except Exception as e:
+                logger.warning(f"challenge_resolve error (email may still have been sent): {e}")
+
             return LoginResponse(
                 success=False,
-                message="Instagram challenge required. Please open Instagram app, complete the challenge, then try again.",
+                requires_challenge=True,
+                message="Instagram sent a verification code to your email. Enter it below to continue.",
             )
         except PleaseWaitFewMinutes:
             return LoginResponse(
@@ -140,6 +161,27 @@ class InstagramService:
         except Exception as e:
             logger.error(f"Login failed: {e}")
             return LoginResponse(success=False, message=f"Login failed: {str(e)}")
+
+    def _resolve_challenge(self, username: str, code: str) -> LoginResponse:
+        """Phase 2: submit the user-provided code to resolve the challenge."""
+        def code_handler(u, c):
+            return code
+
+        self._client.challenge_code_handler = code_handler
+        try:
+            self._client.challenge_resolve(self._pending_challenge)
+            self._pending_challenge = None
+            self._finalize_login(username)
+            self._save_session()
+            logger.info(f"Challenge resolved successfully for {username}")
+            return self._build_login_response(success=True)
+        except Exception as e:
+            logger.error(f"Challenge resolve failed: {e}")
+            self._pending_challenge = None
+            return LoginResponse(
+                success=False,
+                message=f"Incorrect code — please check your email and try again.",
+            )
 
     def logout(self):
         """Logout and clear session."""

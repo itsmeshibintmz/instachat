@@ -17,42 +17,50 @@ class AuthState {
   final bool isLoggedIn;
   final bool isLoading;
   final bool requires2FA;
+  final bool requiresChallenge; // email/SMS code from Instagram
   final int? userId;
   final String? username;
   final String? fullName;
   final String? profilePicUrl;
   final String? error;
+  final String? challengeMessage;
 
   const AuthState({
     this.isLoggedIn = false,
     this.isLoading = false,
     this.requires2FA = false,
+    this.requiresChallenge = false,
     this.userId,
     this.username,
     this.fullName,
     this.profilePicUrl,
     this.error,
+    this.challengeMessage,
   });
 
   AuthState copyWith({
     bool? isLoggedIn,
     bool? isLoading,
     bool? requires2FA,
+    bool? requiresChallenge,
     int? userId,
     String? username,
     String? fullName,
     String? profilePicUrl,
     String? error,
+    String? challengeMessage,
   }) {
     return AuthState(
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       isLoading: isLoading ?? this.isLoading,
       requires2FA: requires2FA ?? this.requires2FA,
+      requiresChallenge: requiresChallenge ?? this.requiresChallenge,
       userId: userId ?? this.userId,
       username: username ?? this.username,
       fullName: fullName ?? this.fullName,
       profilePicUrl: profilePicUrl ?? this.profilePicUrl,
       error: error,
+      challengeMessage: challengeMessage,
     );
   }
 }
@@ -98,10 +106,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
           fullName: result['full_name'] as String?,
           profilePicUrl: result['profile_pic_url'] as String?,
         );
+      } else if (result['requires_challenge'] == true) {
+        // Instagram email/SMS verification required
+        state = state.copyWith(
+          isLoading: false,
+          requiresChallenge: true,
+          challengeMessage: result['message'] as String? ??
+              'Instagram sent a code to your email. Enter it below.',
+          error: null,
+        );
       } else if (result['requires_2fa'] == true) {
         state = state.copyWith(
           isLoading: false,
           requires2FA: true,
+          challengeMessage: 'Enter the code from your authenticator app.',
           error: null,
         );
       } else {
