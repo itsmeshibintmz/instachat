@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/models.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_providers.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/chat_input.dart';
@@ -91,10 +92,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .reactToMessage(messageId, emoji);
   }
 
+  void _handleUnreact(String messageId, String emoji) {
+    ref
+        .read(messagesProvider(widget.thread.threadId).notifier)
+        .unreactToMessage(messageId, emoji);
+  }
+
   @override
   Widget build(BuildContext context) {
     final messagesState =
         ref.watch(messagesProvider(widget.thread.threadId));
+    final currentUserId = ref.watch(authProvider).userId;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -251,8 +259,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               isFirstInGroup: isFirstInGroup,
               isLastInGroup: isLastInGroup,
               threadUsers: widget.thread.users,
+              currentUserId: currentUserId,
               onReaction: (emoji) =>
                   _handleReaction(message.messageId, emoji),
+              onUnreact: (emoji) =>
+                  _handleUnreact(message.messageId, emoji),
             ),
           ],
         );
