@@ -68,7 +68,12 @@ class InstagramService:
     def login(self, username: str, password: str, verification_code: Optional[str] = None) -> LoginResponse:
         """Login to Instagram with optional 2FA code."""
         self._client = Client()
-        self._client.delay_range = [1, 3]  # Random delay between requests
+        # Keep a small delay to avoid triggering Instagram's rate limiter,
+        # but don't add unnecessary seconds to every sub-request.
+        self._client.delay_range = [0, 1]
+        # Tell instagrapi's internal HTTP client to give up after 30 s per
+        # sub-request rather than hanging indefinitely.
+        self._client.request_timeout = 30
         self._session_file = SESSION_DIR / f"{username}_session.json"
 
         # Try to reuse existing session
