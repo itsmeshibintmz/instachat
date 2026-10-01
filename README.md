@@ -15,6 +15,7 @@ No ads. No reels. No distractions. Just your conversations.
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-lightgrey?style=flat-square)](https://flutter.dev)
+[![Build](https://img.shields.io/github/actions/workflow/status/itsmeshibintmz/instachat/build.yml?branch=main&style=flat-square&label=build)](https://github.com/itsmeshibintmz/instachat/actions)
 
 <br />
 
@@ -87,12 +88,29 @@ flutter run
 - [x] Inbox & conversation list
 - [x] Real-time messaging via WebSocket
 - [x] Send images & videos
-- [ ] Voice messages
-- [ ] Message reactions
+- [x] Voice messages
+- [x] Message reactions (tap to toggle, highlighted own reactions)
 - [ ] Story replies
+- [ ] Read receipts / typing indicators
+- [ ] Message pagination
 - [ ] Notifications
 - [ ] Offline caching
 - [ ] Settings screen
+
+---
+
+## 📦 Releases
+
+Every merge to `main` automatically builds a debug APK — find it in  
+[GitHub Actions → Build & Release → Artifacts](https://github.com/itsmeshibintmz/instachat/actions).
+
+To create a versioned release with a downloadable APK:
+```bash
+git tag v1.0.0
+git push upstream v1.0.0
+```
+GitHub Actions will build a release APK and publish it under  
+[Releases](https://github.com/itsmeshibintmz/instachat/releases) automatically.
 
 ---
 
