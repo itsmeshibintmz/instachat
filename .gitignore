@@ -47,3 +47,4 @@ app/ios/ServiceDefinitions.json
 # OS
 .DS_Store
 Thumbs.db
+__pycache__/
