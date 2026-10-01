@@ -15,12 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app source
 COPY app/ ./app/
 
-# Persistent dirs (mount a Railway volume at /app/sessions for session survival)
+# Persistent dirs — mount a Fly.io / Koyeb volume at /app/sessions
 RUN mkdir -p sessions media
 
-# Railway / Render inject PORT; fall back to 8000 locally
+# Fly.io injects PORT=8080; fall back to 8000 for local dev
 ENV INSTACHAT_PORT=8000
 EXPOSE 8000
 
-# Use shell form so $PORT is expanded at runtime
+# Shell form so $PORT is expanded at runtime by the host (Fly.io sets PORT=8080)
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-${INSTACHAT_PORT}}

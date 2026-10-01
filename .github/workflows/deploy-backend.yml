@@ -1,14 +1,17 @@
 name: Deploy Backend
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Deploys the FastAPI backend to Railway whenever backend code changes on main.
+# Deploys the FastAPI backend to Fly.io (free tier) whenever backend code
+# changes on main.
 #
-# Setup (one-time):
-#   1. railway.app → New Project → Deploy from GitHub repo
-#   2. Railway dashboard → your service → Settings → copy the Service ID
-#   3. Railway dashboard → Account Settings → Tokens → New Token
-#   4. GitHub repo → Settings → Secrets → Actions → add:
-#        RAILWAY_TOKEN  = <token from step 3>
+# Fly.io free tier: 3 shared VMs + 3 GB volumes — no credit card needed.
+#
+# One-time setup:
+#   1. flyctl auth signup   (or flyctl auth login if you have an account)
+#   2. cd backend && flyctl launch --no-deploy   (creates app + volume)
+#   3. flyctl tokens create deploy -x 999999h   (long-lived deploy token)
+#   4. GitHub repo → Settings → Secrets → Actions → New secret:
+#        FLY_API_TOKEN = <token from step 3>
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -16,24 +19,22 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
-      - 'railway.toml'
       - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:   # allow manual re-deploy from GitHub Actions UI
 
 jobs:
   deploy:
-    name: Deploy to Railway
+    name: Deploy to Fly.io
     runs-on: ubuntu-latest
-    # Skip if RAILWAY_TOKEN secret is not configured yet
-    if: ${{ secrets.RAILWAY_TOKEN != '' }}
+    # Skip gracefully if FLY_API_TOKEN secret is not yet configured
+    if: ${{ secrets.FLY_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Railway CLI
-        run: |
-          curl -fsSL https://railway.app/install.sh | sh
-          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+      - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Deploy to Railway
+      - name: Deploy to Fly.io
+        working-directory: backend
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service instachat-backend --detach
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --config fly.toml
