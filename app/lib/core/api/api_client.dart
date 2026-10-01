@@ -33,6 +33,8 @@ class ApiClient {
 
   // ─── Auth ─────────────────────────────────────────────────────────────
 
+  static const _kTimeout = Duration(seconds: 15);
+
   Future<Map<String, dynamic>> login(String username, String password,
       {String? verificationCode}) async {
     final body = {
@@ -41,21 +43,27 @@ class ApiClient {
       if (verificationCode != null) 'verification_code': verificationCode,
     };
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/auth/login'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(_kTimeout);
 
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<void> logout() async {
-    await http.post(Uri.parse('$baseUrl/auth/logout'));
+    await http
+        .post(Uri.parse('$baseUrl/auth/logout'))
+        .timeout(_kTimeout);
   }
 
   Future<Map<String, dynamic>> getSessionStatus() async {
-    final response = await http.get(Uri.parse('$baseUrl/auth/status'));
+    final response = await http
+        .get(Uri.parse('$baseUrl/auth/status'))
+        .timeout(_kTimeout);
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 

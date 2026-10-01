@@ -113,7 +113,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Connection error: Make sure the backend server is running.',
+        error: 'Connection error — could not reach ${_api.baseUrl}\n'
+            'Check Settings → Backend URL.',
       );
     }
   }
