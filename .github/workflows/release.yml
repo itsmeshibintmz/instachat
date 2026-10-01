@@ -86,17 +86,12 @@ jobs:
         run: flutter build ipa --no-codesign
         working-directory: app
 
-      - name: Rename IPA → instachat.ipa
+      - name: Package xcarchive → instachat.ipa
         run: |
-          mkdir -p dist
-          IPA=$(find app/build/ios -name "*.ipa" 2>/dev/null | head -1)
-          if [ -z "$IPA" ]; then
-            echo "No IPA found — listing build output:"
-            find app/build/ios -maxdepth 4 2>/dev/null || true
-            exit 1
-          fi
-          echo "Found IPA: $IPA"
-          cp "$IPA" dist/instachat.ipa
+          mkdir -p dist/Payload
+          cp -r "app/build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app" dist/Payload/
+          cd dist && zip -r instachat.ipa Payload && cd ..
+          echo "Packaged: dist/instachat.ipa ($(du -sh dist/instachat.ipa | cut -f1))"
 
       - uses: actions/upload-artifact@v4.6.2
         with:
