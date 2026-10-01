@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: zulu
           java-version: '17'
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload debug APK as artifact
         if: "!startsWith(github.ref, 'refs/tags/')"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: instachat-debug-${{ github.sha }}
           path: app/build/app/outputs/flutter-apk/app-debug.apk
