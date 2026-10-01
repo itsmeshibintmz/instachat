@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -61,6 +63,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scrollToBottom();
   }
 
+  Future<void> _handleSendPhoto(File photo) async {
+    await ref
+        .read(messagesProvider(widget.thread.threadId).notifier)
+        .sendPhoto(photo);
+    _scrollToBottom();
+  }
+
+  Future<void> _handleSendVideo(File video) async {
+    await ref
+        .read(messagesProvider(widget.thread.threadId).notifier)
+        .sendVideo(video);
+    _scrollToBottom();
+  }
+
   void _handleReaction(String messageId, String emoji) {
     ref
         .read(messagesProvider(widget.thread.threadId).notifier)
@@ -73,6 +89,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ref.watch(messagesProvider(widget.thread.threadId));
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+
+    // Show a snackbar whenever a send error occurs
+    ref.listen<MessagesState>(
+      messagesProvider(widget.thread.threadId),
+      (prev, next) {
+        if (next.error != null && next.error != prev?.error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(next.error!),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: cs.error,
+            ),
+          );
+        }
+      },
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -142,6 +174,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // Input bar
           ChatInput(
             onSend: _handleSend,
+            onSendPhoto: _handleSendPhoto,
+            onSendVideo: _handleSendVideo,
             isSending: messagesState.isSending,
           ),
         ],

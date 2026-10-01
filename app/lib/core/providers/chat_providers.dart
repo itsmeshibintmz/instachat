@@ -1,4 +1,6 @@
 /// Inbox & Messages providers using Riverpod
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
@@ -138,6 +140,34 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
       await fetchMessages();
     } catch (e) {
       state = state.copyWith(error: 'Failed to react: $e');
+    }
+  }
+
+  Future<void> sendPhoto(File photo) async {
+    state = state.copyWith(isSending: true, error: null);
+    try {
+      await _api.sendPhoto(state.threadId, photo);
+      await fetchMessages();
+      state = state.copyWith(isSending: false);
+    } catch (e) {
+      state = state.copyWith(
+        isSending: false,
+        error: 'Failed to send photo: $e',
+      );
+    }
+  }
+
+  Future<void> sendVideo(File video) async {
+    state = state.copyWith(isSending: true, error: null);
+    try {
+      await _api.sendVideo(state.threadId, video);
+      await fetchMessages();
+      state = state.copyWith(isSending: false);
+    } catch (e) {
+      state = state.copyWith(
+        isSending: false,
+        error: 'Failed to send video: $e',
+      );
     }
   }
 
