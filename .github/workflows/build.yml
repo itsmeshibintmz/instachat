@@ -1,5 +1,9 @@
 name: Build & Release
 
+# Allow the workflow to create & update GitHub Releases
+permissions:
+  contents: write
+
 # ── Triggers ───────────────────────────────────────────────────────────────
 on:
   push:
@@ -144,6 +148,12 @@ jobs:
         run: flutter build ipa --no-codesign
         working-directory: app
 
+      - name: Locate IPA
+        run: |
+          IPA=$(find app/build/ios/ipa -name "*.ipa" 2>/dev/null | head -1)
+          echo "IPA_PATH=${IPA}" >> $GITHUB_ENV
+          echo "Found IPA: ${IPA}"
+
       - name: Publish iOS IPA to rolling debug release
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: softprops/action-gh-release@v2
@@ -166,12 +176,12 @@ jobs:
             To install on a real device, sign it with your Apple Developer account or use AltStore/Sideloadly.
 
             > Make sure the Python backend is running on your Mac before opening the app.
-          files: app/build/ios/ipa/*.ipa
+          files: ${{ env.IPA_PATH }}
 
       - name: Upload IPA artifact (tags)
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4.6.2
         with:
           name: instachat-ios-${{ github.ref_name }}
-          path: app/build/ios/ipa/*.ipa
+          path: ${{ env.IPA_PATH }}
           retention-days: 90
