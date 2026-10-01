@@ -3,10 +3,10 @@ name: Build & Release
 # ── Triggers ───────────────────────────────────────────────────────────────
 on:
   push:
-    branches: [main]          # Build debug APK on every merge to main
-    tags: ['v*.*.*']          # Build release APK + create GitHub Release on tag
+    branches: [main]          # Debug builds → rolling 'latest' release
+    tags: ['v*.*.*']          # Release builds → versioned GitHub Release
   pull_request:
-    branches: [main]          # Analyze only on PRs (no APK needed)
+    branches: [main]          # Analyze only on PRs
   workflow_dispatch:          # Allow manual trigger from GitHub Actions UI
 
 # ── Jobs ───────────────────────────────────────────────────────────────────
@@ -38,7 +38,6 @@ jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    # Only build APK on main pushes and tags, not on PRs
     if: github.event_name != 'pull_request'
     needs: analyze
 
@@ -62,21 +61,33 @@ jobs:
         run: flutter pub get
         working-directory: app
 
-      # ── Debug build (main branch pushes) ──────────────────────────────────
+      # ── Debug build (main branch) ─────────────────────────────────────────
       - name: Build debug APK
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: flutter build apk --debug
         working-directory: app
 
-      - name: Upload debug APK as artifact
+      - name: Publish rolling debug release
         if: "!startsWith(github.ref, 'refs/tags/')"
-        uses: actions/upload-artifact@v4.6.2
+        uses: softprops/action-gh-release@v2
         with:
-          name: instachat-debug-${{ github.sha }}
-          path: app/build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 30
+          tag_name: latest
+          name: "Latest Debug Build"
+          prerelease: true
+          make_latest: false
+          body: |
+            🤖 **Auto-built** from [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) on `main`.
 
-      # ── Release build (version tags only) ────────────────────────────────
+            This is a rolling debug build — always reflects the latest code.
+            Not a stable release.
+
+            ### Install on Android
+            1. Download `instachat-debug.apk` below
+            2. Enable **Install from unknown sources** on your device
+            3. Install the APK — make sure the Python backend is running on your Mac first
+          files: app/build/app/outputs/flutter-apk/app-debug.apk
+
+      # ── Release build (version tags) ─────────────────────────────────────
       - name: Build release APK
         if: startsWith(github.ref, 'refs/tags/')
         run: flutter build apk --release
@@ -94,6 +105,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: InstaChat ${{ github.ref_name }}
+          make_latest: true
           body: |
             ## InstaChat ${{ github.ref_name }}
 
@@ -106,3 +118,60 @@ jobs:
           files: dist/instachat-${{ github.ref_name }}.apk
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+  # ── iOS build ─────────────────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    if: github.event_name != 'pull_request'
+    needs: analyze
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.x'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: app
+
+      - name: Build iOS (no codesign)
+        run: flutter build ipa --no-codesign
+        working-directory: app
+
+      - name: Publish iOS IPA to rolling debug release
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest Debug Build"
+          prerelease: true
+          make_latest: false
+          body: |
+            🤖 **Auto-built** from [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) on `main`.
+
+            This is a rolling debug build — always reflects the latest code.
+            Not a stable release.
+
+            ### Android
+            Download `instachat-debug.apk` → enable **Install from unknown sources** → install.
+
+            ### iOS (unsigned IPA)
+            The IPA is built without a codesigning certificate.
+            To install on a real device, sign it with your Apple Developer account or use AltStore/Sideloadly.
+
+            > Make sure the Python backend is running on your Mac before opening the app.
+          files: app/build/ios/ipa/*.ipa
+
+      - name: Upload IPA artifact (tags)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: instachat-ios-${{ github.ref_name }}
+          path: app/build/ios/ipa/*.ipa
+          retention-days: 90
