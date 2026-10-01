@@ -77,6 +77,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scrollToBottom();
   }
 
+  Future<void> _handleSendVoice(File audio) async {
+    await ref
+        .read(messagesProvider(widget.thread.threadId).notifier)
+        .sendVoice(audio);
+    _scrollToBottom();
+  }
+
   void _handleReaction(String messageId, String emoji) {
     ref
         .read(messagesProvider(widget.thread.threadId).notifier)
@@ -176,6 +183,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onSend: _handleSend,
             onSendPhoto: _handleSendPhoto,
             onSendVideo: _handleSendVideo,
+            onSendVoice: _handleSendVoice,
             isSending: messagesState.isSending,
           ),
         ],
