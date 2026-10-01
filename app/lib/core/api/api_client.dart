@@ -184,10 +184,9 @@ class ApiClient {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
-  Future<void> markSeen(String threadId, String messageId) async {
-    await http.post(
-      Uri.parse('$baseUrl/messages/$threadId/seen?message_id=$messageId'),
-    );
+  /// Marks all messages in [threadId] as seen by the current user.
+  Future<void> markSeen(String threadId) async {
+    await http.post(Uri.parse('$baseUrl/messages/$threadId/seen'));
   }
 
   // ─── Media ────────────────────────────────────────────────────────────

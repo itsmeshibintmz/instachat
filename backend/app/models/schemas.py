@@ -120,6 +120,8 @@ class ThreadMessagesResponse(BaseModel):
     has_older: bool = False
     cursor: Optional[str] = None
     users: list[UserInfo] = Field(default_factory=list)
+    # user_pk (str) → ISO-8601 datetime of the last message they have seen
+    seen_at: dict[str, str] = Field(default_factory=dict)
 
 
 # ─── Send Message ────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -236,12 +236,30 @@ class InstagramService:
             # Extract the pagination cursor from the thread (instagrapi stores it after fetch)
             next_cursor = getattr(thread, 'cursor', None)
 
+            # Build seen_at: for each OTHER participant, record when they last
+            # saw a message so Flutter can show read receipts.
+            seen_at: dict[str, str] = {}
+            try:
+                raw_seen = getattr(thread, 'last_seen_at', None) or {}
+                for user_pk, seen_info in raw_seen.items():
+                    if int(user_pk) == self._user_id:
+                        continue  # skip our own entry
+                    ts_str = getattr(seen_info, 'timestamp', None)
+                    if ts_str:
+                        # instagrapi gives timestamp in microseconds as a string
+                        ts_us = int(ts_str)
+                        dt = datetime.fromtimestamp(ts_us / 1_000_000, tz=timezone.utc)
+                        seen_at[str(user_pk)] = dt.isoformat()
+            except Exception as ex:
+                logger.warning(f"Failed to extract last_seen_at: {ex}")
+
             return ThreadMessagesResponse(
                 thread_id=thread_id,
                 messages=messages,
                 has_older=next_cursor is not None and len(messages) >= limit,
                 cursor=next_cursor,
                 users=list(users_map.values()),
+                seen_at=seen_at,
             )
         except Exception as e:
             logger.error(f"Failed to fetch messages for thread {thread_id}: {e}")
