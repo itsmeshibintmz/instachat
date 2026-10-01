@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/settings_provider.dart';
+import '../../settings/screens/settings_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -59,6 +61,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -248,6 +251,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         color: cs.onSurface.withValues(alpha: 0.35),
                       ),
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Backend URL chip — tap to open Settings
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const SettingsScreen()),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: cs.outline.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.dns_rounded,
+                                size: 12,
+                                color: cs.onSurface.withValues(alpha: 0.5)),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                settings.baseUrl,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 10,
+                                  color: cs.onSurface.withValues(alpha: 0.5),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.edit_rounded,
+                                size: 10,
+                                color: cs.onSurface.withValues(alpha: 0.4)),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
