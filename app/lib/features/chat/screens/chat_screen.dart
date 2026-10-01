@@ -184,7 +184,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           // Messages
           Expanded(
-            child: _buildMessages(messagesState, theme),
+            child: _buildMessages(messagesState, theme, currentUserId),
           ),
 
           // Input bar
@@ -200,7 +200,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildMessages(MessagesState state, ThemeData theme) {
+  Widget _buildMessages(MessagesState state, ThemeData theme, int? currentUserId) {
     if (state.isLoading && state.messages.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }

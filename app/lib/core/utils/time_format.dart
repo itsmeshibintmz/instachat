@@ -1,4 +1,5 @@
 /// Time formatting utilities for chat timestamps.
+library;
 
 String formatTimeAgo(DateTime dateTime) {
   final now = DateTime.now();

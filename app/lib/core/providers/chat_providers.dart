@@ -1,4 +1,6 @@
 /// Inbox & Messages providers using Riverpod
+library;
+
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -1,4 +1,6 @@
 /// API Client for communicating with the InstaChat backend.
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -15,7 +17,7 @@ class ApiClient {
       : baseUrl = baseUrl ??
             // Android emulator → 10.0.2.2 maps to host machine localhost.
             // iOS Simulator   → localhost resolves directly.
-            // Physical device → pass a custom IP via the settings screen.
+            // Physical device → pass a custom baseUrl from settings.
             (Platform.isAndroid
                 ? 'http://10.0.2.2:8000'
                 : 'http://localhost:8000') {

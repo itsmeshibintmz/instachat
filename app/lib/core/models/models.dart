@@ -1,5 +1,6 @@
 /// Data models for the InstaChat Flutter app.
 /// These mirror the backend Pydantic schemas.
+library;
 
 class UserInfo {
   final int pk;

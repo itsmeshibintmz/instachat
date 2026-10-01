@@ -2,6 +2,8 @@
 ///
 /// Connects after login, auto-reconnects on drop (5 s back-off),
 /// and dispatches inbox / message refreshes when events arrive.
+library;
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -68,7 +70,9 @@ class WebSocketNotifier extends StateNotifier<WebSocketState> {
   void _doConnect() {
     if (!mounted) return;
     if (state.status == WsStatus.connecting ||
-        state.status == WsStatus.connected) return;
+        state.status == WsStatus.connected) {
+      return;
+    }
 
     state = state.copyWith(status: WsStatus.connecting, error: null);
 

@@ -2,6 +2,8 @@
 ///
 /// Entry point for the Flutter application.
 /// Initializes providers and sets up platform-adaptive theming.
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
