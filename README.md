@@ -2,72 +2,89 @@
 
 <br />
 
-# 💬 InstaChat
-
-**Your Instagram DMs. Without Instagram.**
-
-A clean, fast, native messaging app for Instagram — built with Flutter and Python.  
-No ads. No reels. No distractions. Just your conversations.
+<img src="app/assets/icon/icon.png" width="96" height="96" alt="InstaChat icon" />
 
 <br />
 
+# InstaChat
+
+**Your Instagram DMs. Clean and fast.**
+
+No ads. No Reels. No algorithm. Just your conversations.
+
+<br />
+
+[![Latest Release](https://img.shields.io/github/v/release/itsmeshibintmz/instachat?style=flat-square&label=Download&color=6C63FF)](https://github.com/itsmeshibintmz/instachat/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/itsmeshibintmz/instachat/build.yml?branch=main&style=flat-square&label=Build)](https://github.com/itsmeshibintmz/instachat/actions)
 [![Flutter](https://img.shields.io/badge/Flutter-3.47+-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-lightgrey?style=flat-square)](https://flutter.dev)
-[![CI](https://img.shields.io/github/actions/workflow/status/itsmeshibintmz/instachat/build.yml?branch=main&style=flat-square&label=CI)](https://github.com/itsmeshibintmz/instachat/actions)
-[![Release](https://img.shields.io/github/v/release/itsmeshibintmz/instachat?style=flat-square&label=Latest)](https://github.com/itsmeshibintmz/instachat/releases/latest)
 
 <br />
 
-[**Download v1.0.0**](https://github.com/itsmeshibintmz/instachat/releases/latest) · [CI Builds](https://github.com/itsmeshibintmz/instachat/actions) · [All Releases](https://github.com/itsmeshibintmz/instachat/releases)
+[**⬇ Download APK**](https://github.com/itsmeshibintmz/instachat/releases/latest) &nbsp;·&nbsp; [All Releases](https://github.com/itsmeshibintmz/instachat/releases) &nbsp;·&nbsp; [Actions](https://github.com/itsmeshibintmz/instachat/actions)
+
+<br />
 
 </div>
 
 ---
 
-## ✨ What it does
+## What it does
 
-| | |
+| | Feature |
 |---|---|
-| 💬 | Send and receive messages in real-time |
+| 💬 | Send & receive messages in real-time |
 | 📷 | Share photos and videos |
-| 🎤 | Send voice messages |
+| 🎤 | Voice messages |
 | ❤️ | React to messages with emoji |
-| 🔍 | Search your conversations |
-| 🔔 | Live updates via WebSocket — no manual refresh |
-| ⚙️ | Settings screen — configure backend URL, test connection, manage account |
-| 🌙 | Dark and light mode, follows your system |
-| 📱 | Feels native on both Android and iOS |
+| 🔍 | Search conversations |
+| ⚡ | Live updates via WebSocket |
+| 🌙 | Dark & light mode, follows system |
+| 📱 | Native feel on Android (Material 3) and iOS (Liquid Glass) |
 
 ---
 
-## 🎨 Design
-
-InstaChat adapts its look completely to your platform:
-
-**Android** — Material 3 Expressive  
-Vibrant purple & pink accents, pill-shaped elements, expressive typography
-
-**iOS** — Liquid Glass  
-Frosted translucent surfaces, SF-like type, iOS 26 aesthetic
-
----
-
-## 🏗 How it works
+## How it works
 
 ```
-Flutter App  ──────►  FastAPI Backend  ──────►  Instagram
-  (your phone)          (runs on Mac)          (via instagrapi)
+Your Phone  ──────►  FastAPI Backend  ──────►  Instagram
+ (Flutter)            (Render cloud)           (instagrapi)
 ```
 
-The app never talks to Instagram directly — everything routes through a small Python server on your machine. This keeps things clean and lets the backend handle all auth complexity.
+The app connects to a small Python server running on [Render](https://render.com) (free cloud hosting). The backend talks to Instagram on your behalf using [instagrapi](https://github.com/subzeroid/instagrapi). Your phone never contacts Instagram directly.
+
+The backend is **always on** — no Mac required. A [UptimeRobot](https://uptimerobot.com) monitor pings it every 5 minutes to prevent sleep.
 
 ---
 
-## 🚀 Running locally
+## Install on Android
 
-### 1 — Start the backend
+1. Go to [**Releases**](https://github.com/itsmeshibintmz/instachat/releases/latest)
+2. Download `instachat.apk`
+3. On your phone: **Settings → Install unknown apps** → allow for your browser/Files app
+4. Open the downloaded APK and install
+5. Launch InstaChat → log in with your Instagram credentials
+
+> The cloud backend URL is already baked into every release APK — no setup needed.
+
+## Install on iOS (sideload)
+
+The IPA is **unsigned** — you need a sideloading tool:
+
+- [AltStore](https://altstore.io) — recommended
+- [Sideloadly](https://sideloadly.io)
+
+Download `instachat.ipa` from [Releases](https://github.com/itsmeshibintmz/instachat/releases/latest) and load it through your chosen tool.
+
+---
+
+## Run locally (for developers)
+
+<details>
+<summary>Local backend setup</summary>
+
+### Backend
 
 ```bash
 cd backend
@@ -76,16 +93,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 2 — Connect the backend to your phone
+> Python 3.12 required — newer versions break a pydantic dependency.
 
-| Setup | Command | URL to use in app |
+### Connect app to local backend
+
+| Device | Command | URL in Settings |
 |---|---|---|
-| **Android emulator** | *(nothing)* | `http://10.0.2.2:8000` |
-| **Android via USB** | `adb reverse tcp:8000 tcp:8000` | `http://127.0.0.1:8000` |
-| **iOS Simulator** | *(nothing)* | `http://localhost:8000` |
-| **Same WiFi** | *(nothing)* | `http://<your-mac-ip>:8000` |
+| Android emulator | *(nothing)* | `http://10.0.2.2:8000` |
+| Android via USB | `adb reverse tcp:8000 tcp:8000` | `http://127.0.0.1:8000` |
+| iOS Simulator | *(nothing)* | `http://localhost:8000` |
+| Same Wi-Fi | *(nothing)* | `http://<your-mac-ip>:8000` |
 
-### 3 — Run the app
+Open the app → **Settings → Backend URL → change → Save → Test connection**.
+
+### Flutter app
 
 ```bash
 cd app
@@ -93,58 +114,48 @@ flutter pub get
 flutter run
 ```
 
-> Go to **Settings → Connection** in the app to configure the backend URL. Tap **Test connection** to verify it works before logging in.
-
-> **Python 3.12 is required** — newer versions break a pydantic dependency.
+</details>
 
 ---
 
-## 📦 Releases
+## CI / CD
 
-### Download
-Latest stable: **[github.com/itsmeshibintmz/instachat/releases/latest](https://github.com/itsmeshibintmz/instachat/releases/latest)**  
-Includes `instachat.apk` (Android) + `instachat.ipa` (iOS, unsigned).
+| Workflow | Trigger | Output |
+|---|---|---|
+| **Build** | Every push to `main` | Debug APK + IPA → `latest` pre-release |
+| **Release** | Manual (`Actions → Release → Run workflow`) | Versioned APK + IPA → GitHub Release |
+| **Deploy Backend** | Push to `main` touching `backend/` | Re-deploys to Render automatically |
 
-### Rolling debug build
-Every merge to `main` auto-builds and publishes to the [Latest Debug Build](https://github.com/itsmeshibintmz/instachat/releases/tag/latest) pre-release.
-
-### Create a new versioned release
-Go to **[Actions → Release → Run workflow](https://github.com/itsmeshibintmz/instachat/actions/workflows/release.yml)**,  
-enter a version (e.g. `1.1.0`) and changelog — everything else is automatic.
-
-### Install on Android
-1. Download `instachat.apk`
-2. Enable **Install unknown apps** on your device
-3. Open the APK and install
-
-### Install on iOS (sideload)
-The IPA is unsigned. Use [AltStore](https://altstore.io) or [Sideloadly](https://sideloadly.io).
+To create a new release: **[Actions → Release → Run workflow](https://github.com/itsmeshibintmz/instachat/actions/workflows/release.yml)** → enter version (e.g. `1.6.0`).
 
 ---
 
-## 🗺 Roadmap
+## Roadmap
 
-- [x] Login with 2FA support
-- [x] Inbox & conversation list
-- [x] Real-time messaging via WebSocket
-- [x] Send images & videos
-- [x] Voice messages
-- [x] Message reactions (tap to toggle, highlighted own reactions)
-- [x] Settings screen (backend URL, connection test, account)
-- [x] CI/CD — auto debug builds + one-click versioned releases
-- [ ] Read receipts / typing indicators
-- [ ] Message pagination (load older messages)
+### Done ✅
+- Login with 2FA support
+- Inbox & conversation list
+- Real-time messaging (WebSocket)
+- Send photos, videos, voice messages
+- Message reactions (tap to toggle)
+- Settings screen (backend URL, connection test, account)
+- App icon — all variants (adaptive, dark, monochrome)
+- Cloud backend on Render — no Mac required
+- CI/CD — auto debug builds + one-click releases
+- Better connection error UX (shows URL, 15 s timeout)
+
+### Coming up 🔜
+- [ ] Read receipts & typing indicators
+- [ ] Load older messages (pagination)
 - [ ] Push notifications (background)
-- [ ] Offline caching
+- [ ] Offline message cache
 - [ ] Story replies
-- [ ] App icon + splash screen
 
 ---
 
 ## ⚠️ Heads up
 
-This uses Instagram's **unofficial API** — it's for personal use only.  
-Don't distribute it. Your account could get restricted if Instagram flags the activity.
+This uses Instagram's **unofficial API**. It's for personal use only — don't distribute it publicly. Your account could get restricted if Instagram flags unusual activity.
 
 ---
 
