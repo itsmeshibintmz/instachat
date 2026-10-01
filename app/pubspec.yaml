@@ -25,6 +25,29 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+# ─── Launcher icon configuration ─────────────────────────────────────────────
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  remove_alpha_ios: true        # iOS icons must not have alpha channel
+  image_path: "assets/icon/icon.png"
+
+  # Android Adaptive Icon (API 26+, Material You)
+  adaptive_icon_background: "#6D28D9"   # violet-700 solid background layer
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+
+  # Android Monochrome (API 33+, Material You adaptive tinting)
+  adaptive_icon_monochrome: "assets/icon/icon_monochrome.png"
+
+  # iOS alternate icons (iOS 18+ dark mode & tinted / liquid-glass style)
+  platforms:
+    ios:
+      dark:
+        image_path: "assets/icon/icon_dark.png"
+      tinted:
+        image_path: "assets/icon/icon_monochrome.png"
 
 flutter:
   uses-material-design: true
