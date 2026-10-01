@@ -4,10 +4,12 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
+import 'settings_provider.dart';
 
-// API Client provider
+// API Client provider — re-created whenever the saved base URL changes
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient();
+  final settings = ref.watch(settingsProvider);
+  return ApiClient(baseUrl: settings.baseUrl);
 });
 
 // Auth state

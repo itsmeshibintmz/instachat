@@ -5,6 +5,7 @@ import '../../../core/models/models.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_providers.dart';
 import '../../chat/screens/chat_screen.dart';
+import '../../settings/screens/settings_screen.dart';
 import '../widgets/thread_tile.dart';
 
 class InboxScreen extends ConsumerStatefulWidget {
@@ -85,6 +86,15 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 _isSearching = !_isSearching;
                 if (!_isSearching) _searchController.clear();
               });
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
             },
           ),
           PopupMenuButton<String>(
