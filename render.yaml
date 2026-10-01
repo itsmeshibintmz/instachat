@@ -7,8 +7,7 @@ services:
   - type: web
     name: instachat-backend
     runtime: docker
-    dockerfilePath: backend/Dockerfile
-    dockerContext: ./backend      # build context = backend/ so COPY paths resolve correctly
+    dockerfilePath: Dockerfile    # root-level Dockerfile uses backend/ prefixed COPY paths
     plan: free
     healthCheckPath: /health
     # Render injects PORT automatically; Dockerfile reads ${PORT:-8000}
