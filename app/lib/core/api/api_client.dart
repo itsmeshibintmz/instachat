@@ -33,6 +33,10 @@ class ApiClient {
 
   // ─── Auth ─────────────────────────────────────────────────────────────
 
+  // Instagram auth (instagrapi) can take 20-60 s on first attempt
+  // (challenge resolution, device fingerprinting, etc.)
+  static const _kLoginTimeout = Duration(seconds: 90);
+  // All other API calls: fail fast
   static const _kTimeout = Duration(seconds: 15);
 
   Future<Map<String, dynamic>> login(String username, String password,
@@ -49,7 +53,7 @@ class ApiClient {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(body),
         )
-        .timeout(_kTimeout);
+        .timeout(_kLoginTimeout);
 
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
