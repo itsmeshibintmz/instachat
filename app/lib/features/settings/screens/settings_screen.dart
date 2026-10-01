@@ -169,9 +169,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  isIOS
-                      ? '• Simulator: http://localhost:8000\n• Physical iPhone: http://<mac-ip>:8000 (same WiFi)\n• USB (iproxy): http://127.0.0.1:8000'
-                      : '• Emulator: http://10.0.2.2:8000\n• Physical device (USB): http://127.0.0.1:8000  ← run: adb reverse tcp:8000 tcp:8000\n• Same WiFi: http://<mac-ip>:8000',
+                  'Leave as-is to use the cloud backend.\n'
+                  'Advanced: point to your own server or local dev instance.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: cs.onSurface.withValues(alpha: 0.45),
                     height: 1.6,

@@ -48,7 +48,7 @@ jobs:
         working-directory: app
 
       - name: Build release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=BASE_URL=${{ secrets.BACKEND_URL }}
         working-directory: app
 
       - name: Rename APK → instachat.apk
@@ -83,7 +83,7 @@ jobs:
         working-directory: app
 
       - name: Build iOS IPA (no codesign)
-        run: flutter build ipa --no-codesign
+        run: flutter build ipa --no-codesign --dart-define=BASE_URL=${{ secrets.BACKEND_URL }}
         working-directory: app
 
       - name: Package xcarchive → instachat.ipa
@@ -200,26 +200,6 @@ jobs:
             2. Install using [**AltStore**](https://altstore.io) *(free)* or [**Sideloadly**](https://sideloadly.io)
 
             ---
-
-            ## ⚙️ Backend setup
-
-            The app needs the Python backend running on your Mac:
-
-            ```bash
-            cd backend
-            source .venv/bin/activate
-            uvicorn app.main:app --host 0.0.0.0 --port 8000
-            ```
-
-            **Connect your phone via USB**, then forward the port so the app can reach the backend:
-
-            ```bash
-            # Android
-            adb reverse tcp:8000 tcp:8000
-
-            # iOS (after Simulator launch or USB trust)
-            iproxy 8000 8000
-            ```
 
             ---
 

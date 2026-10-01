@@ -10,9 +10,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _kBaseUrl = 'settings_base_url';
 
-// ─── Default URL helper ───────────────────────────────────────────────────────
+// ─── Cloud / build-time default ──────────────────────────────────────────────
+//
+// Priority order:
+//   1. User's saved URL in SharedPreferences          ← persists across restarts
+//   2. --dart-define=BASE_URL=https://...             ← baked in at CI build time
+//   3. Platform-specific localhost fallback           ← local dev only
+//
+// CI passes --dart-define=BASE_URL=$BACKEND_URL where BACKEND_URL is the
+// Railway deployment secret set in GitHub → Settings → Secrets → Actions.
+
+const _kBuildUrl = String.fromEnvironment('BASE_URL');
 
 String defaultBaseUrl() {
+  if (_kBuildUrl.isNotEmpty) return _kBuildUrl;
   if (Platform.isAndroid) return 'http://10.0.2.2:8000';
   return 'http://localhost:8000';
 }
