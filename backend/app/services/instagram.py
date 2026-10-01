@@ -213,11 +213,15 @@ class InstagramService:
     def get_thread_messages(
         self, thread_id: str, cursor: Optional[str] = None, limit: int = MAX_MESSAGES_PER_FETCH
     ) -> ThreadMessagesResponse:
-        """Fetch messages from a specific thread."""
+        """Fetch messages from a specific thread, with optional cursor for older messages."""
         self._ensure_logged_in()
 
         try:
-            thread = self._client.direct_thread(thread_id, amount=limit)
+            # Pass cursor to instagrapi so it fetches the correct page of messages
+            thread = self._client.direct_thread(
+                thread_id, amount=limit, cursor=cursor
+            ) if cursor else self._client.direct_thread(thread_id, amount=limit)
+
             messages = []
             users_map: dict[int, UserInfo] = {}
 
@@ -229,10 +233,14 @@ class InstagramService:
             for msg in thread.messages:
                 messages.append(self._convert_message(msg))
 
+            # Extract the pagination cursor from the thread (instagrapi stores it after fetch)
+            next_cursor = getattr(thread, 'cursor', None)
+
             return ThreadMessagesResponse(
                 thread_id=thread_id,
                 messages=messages,
-                has_older=len(messages) >= limit,
+                has_older=next_cursor is not None and len(messages) >= limit,
+                cursor=next_cursor,
                 users=list(users_map.values()),
             )
         except Exception as e:

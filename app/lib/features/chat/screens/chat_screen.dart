@@ -30,8 +30,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ref.read(messagesProvider(widget.thread.threadId).notifier).fetchMessages();
     });
 
-    // Fallback poll every 30 s (WebSocket handles real-time updates;
-    // this catches anything missed if the WS drops temporarily).
+    // Load older messages when user scrolls to the top of the list.
+    // (reverse: true list — "top" is maxScrollExtent)
+    _scrollController.addListener(_onScroll);
+
+    // Fallback poll every 30 s
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         ref
@@ -41,8 +44,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  void _onScroll() {
+    final pos = _scrollController.position;
+    // Within 200px of the oldest-messages end → load more
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      ref
+          .read(messagesProvider(widget.thread.threadId).notifier)
+          .loadOlderMessages();
+    }
+  }
+
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _refreshTimer?.cancel();
     super.dispose();
@@ -205,7 +219,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (state.messages.isEmpty) {
+    if (state.messages.isEmpty && !state.isLoading) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -227,12 +241,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
 
+    // Total item count: messages + optional "loading older" indicator at the top
+    final itemCount = state.messages.length + (state.hasOlder ? 1 : 0);
+
     return ListView.builder(
       controller: _scrollController,
       reverse: true, // Newest messages at bottom
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      itemCount: state.messages.length,
+      itemCount: itemCount,
       itemBuilder: (context, index) {
+        // Last item in the reversed list = visually topmost = load-more indicator
+        if (index == itemCount - 1 && state.hasOlder) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: state.isLoadingMore
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : TextButton.icon(
+                      onPressed: () => ref
+                          .read(messagesProvider(widget.thread.threadId).notifier)
+                          .loadOlderMessages(),
+                      icon: const Icon(Icons.expand_less_rounded, size: 18),
+                      label: const Text('Load older messages'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.5),
+                      ),
+                    ),
+            ),
+          );
+        }
         final message = state.messages[index];
         final prevMessage =
             index < state.messages.length - 1 ? state.messages[index + 1] : null;

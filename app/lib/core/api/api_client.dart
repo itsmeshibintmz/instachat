@@ -123,21 +123,22 @@ class ApiClient {
 
   // ─── Messages ─────────────────────────────────────────────────────────
 
-  Future<List<MessageItem>> getMessages(String threadId,
-      {int limit = 50}) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/messages/$threadId?limit=$limit'),
+  Future<MessagesPage> getMessages(String threadId,
+      {int limit = 50, String? cursor}) async {
+    final uri = Uri.parse('$baseUrl/messages/$threadId').replace(
+      queryParameters: {
+        'limit': limit.toString(),
+        if (cursor != null) 'cursor': cursor,
+      },
     );
+    final response = await http.get(uri);
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch messages: ${response.body}');
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final messages = data['messages'] as List<dynamic>;
-    return messages
-        .map((m) => MessageItem.fromJson(m as Map<String, dynamic>))
-        .toList();
+    return MessagesPage.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
   }
 
   Future<Map<String, dynamic>> sendText(String threadId, String text) async {
