@@ -115,7 +115,13 @@ jobs:
       - name: Rename IPA
         run: |
           mkdir -p dist
-          IPA=$(find app/build/ios/ipa -name "*.ipa" | head -1)
+          IPA=$(find app/build/ios -name "*.ipa" 2>/dev/null | head -1)
+          if [ -z "$IPA" ]; then
+            echo "No IPA found — listing build output for debug:"
+            find app/build/ios -maxdepth 4 2>/dev/null || true
+            exit 1
+          fi
+          echo "Found IPA: $IPA"
           cp "$IPA" dist/instachat-debug.ipa
 
       - name: Publish to rolling debug release
