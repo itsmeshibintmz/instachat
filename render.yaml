@@ -1,0 +1,13 @@
+# ── Render deployment configuration ──────────────────────────────────────────
+# Render free tier: 512MB RAM, 0.1 CPU, no credit card needed.
+# To keep the service alive (prevent 15-min sleep) set up a free UptimeRobot
+# monitor at uptimerobot.com to ping /health every 5 minutes.
+
+services:
+  - type: web
+    name: instachat-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    healthCheckPath: /health
+    # Render injects PORT automatically; Dockerfile reads ${PORT:-8000}

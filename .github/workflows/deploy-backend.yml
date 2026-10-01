@@ -1,18 +1,22 @@
 name: Deploy Backend
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Deploys the FastAPI backend to Koyeb (free tier — NO credit card needed).
+# Deploys the FastAPI backend to Render (free tier, no credit card).
+#
+# How Render deploy hooks work: POST to a secret URL → triggers a redeploy.
+# No CLI, no SDK — just one curl command.
 #
 # One-time setup:
-#   1. koyeb.com → Sign up with GitHub (no CC required)
-#   2. Dashboard → Create App → GitHub → pick instachat repo
-#        Builder:    Dockerfile
-#        Dockerfile: backend/Dockerfile
-#        Port:       8000
-#        Region:     any (pick closest)
-#   3. Dashboard → Account → API → New API Key
-#   4. GitHub repo → Settings → Secrets → Actions → New secret:
-#        KOYEB_API_TOKEN = <key from step 3>
+#   1. render.com → New → Web Service → connect GitHub → pick instachat
+#        Runtime:         Docker
+#        Dockerfile path: backend/Dockerfile
+#        Plan:            Free
+#   2. Your service → Settings → Deploy Hook → copy the URL
+#   3. GitHub repo → Settings → Secrets → Actions → New secret:
+#        RENDER_DEPLOY_HOOK_URL = <hook URL from step 2>
+#   4. (Optional but important) uptimerobot.com → New Monitor →
+#        HTTP(S), URL: https://<your-app>.onrender.com/health, interval: 5 min
+#        This pings every 5 min and prevents Render's free tier from sleeping.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -20,26 +24,19 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'render.yaml'
       - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy to Koyeb
+    name: Deploy to Render
     runs-on: ubuntu-latest
-    if: ${{ secrets.KOYEB_API_TOKEN != '' }}
+    # Skip gracefully if the hook secret isn't set yet
+    if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Koyeb CLI
+      - name: Trigger Render deploy
         run: |
-          curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/master/install.sh | sh
-          echo "$HOME/.koyeb/bin" >> $GITHUB_PATH
-
-      - name: Redeploy service
-        env:
-          KOYEB_TOKEN: ${{ secrets.KOYEB_API_TOKEN }}
-        run: |
-          # Trigger a redeploy of the existing service
-          # App + service names must match what you created in the dashboard
-          koyeb service redeploy instachat-backend/api
+          echo "Triggering Render redeploy..."
+          curl --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "✓ Deploy triggered — check https://dashboard.render.com for build status"
