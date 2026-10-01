@@ -241,6 +241,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             : const Text('Sign In'),
                       ),
                     ),
+
+                    // Slow-login hint
+                    if (authState.isLoading)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          'Signing in to Instagram… this can take up to 60 s',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withValues(alpha: 0.45),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     const SizedBox(height: 24),
 
                     // Disclaimer

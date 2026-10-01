@@ -111,10 +111,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       }
     } catch (e) {
+      final isTimeout = e.toString().contains('TimeoutException');
       state = state.copyWith(
         isLoading: false,
-        error: 'Connection error — could not reach ${_api.baseUrl}\n'
-            'Check Settings → Backend URL.',
+        error: isTimeout
+            ? 'Login timed out (90 s). Instagram may be slow — try again.'
+            : 'Connection error — could not reach ${_api.baseUrl}\n'
+                'Check Settings → Backend URL.',
       );
     }
   }
