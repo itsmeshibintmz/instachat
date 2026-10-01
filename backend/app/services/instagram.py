@@ -65,6 +65,20 @@ class InstagramService:
 
     # ─── Authentication ──────────────────────────────────────────────────
 
+    @staticmethod
+    def _server_challenge_handler(username: str, choice) -> str:
+        """
+        Replace instagrapi's default challenge_code_handler which calls
+        input() — that blocks forever (or raises EOFError) on a headless
+        server like Render.  Raising ChallengeRequired here lets our
+        except block return a clean error message to the Flutter app.
+        """
+        from instagrapi.exceptions import ChallengeRequired
+        raise ChallengeRequired(
+            f"Instagram sent a security challenge to @{username}. "
+            "Open the Instagram app, approve the login attempt, then try signing in again."
+        )
+
     def login(self, username: str, password: str, verification_code: Optional[str] = None) -> LoginResponse:
         """Login to Instagram with optional 2FA code."""
         self._client = Client()
@@ -74,6 +88,9 @@ class InstagramService:
         # Tell instagrapi's internal HTTP client to give up after 30 s per
         # sub-request rather than hanging indefinitely.
         self._client.request_timeout = 30
+        # Override the default challenge handler which calls input() and
+        # raises EOFError on a headless server — use our own instead.
+        self._client.challenge_code_handler = self._server_challenge_handler
         self._session_file = SESSION_DIR / f"{username}_session.json"
 
         # Try to reuse existing session
