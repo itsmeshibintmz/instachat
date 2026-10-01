@@ -15,12 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app source
 COPY app/ ./app/
 
-# Persistent dirs (mount a Railway volume at /app/sessions for session survival)
+# Persistent dirs — sessions/ is written to by instagrapi for session caching
 RUN mkdir -p sessions media
 
-# Railway / Render inject PORT; fall back to 8000 locally
+# Render (and most PaaS) injects PORT at runtime; fall back to 8000 for local dev
 ENV INSTACHAT_PORT=8000
 EXPOSE 8000
 
-# Use shell form so $PORT is expanded at runtime
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-${INSTACHAT_PORT}}

@@ -1,14 +1,22 @@
 name: Deploy Backend
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Deploys the FastAPI backend to Railway whenever backend code changes on main.
+# Deploys the FastAPI backend to Render (free tier, no credit card).
 #
-# Setup (one-time):
-#   1. railway.app → New Project → Deploy from GitHub repo
-#   2. Railway dashboard → your service → Settings → copy the Service ID
-#   3. Railway dashboard → Account Settings → Tokens → New Token
-#   4. GitHub repo → Settings → Secrets → Actions → add:
-#        RAILWAY_TOKEN  = <token from step 3>
+# How Render deploy hooks work: POST to a secret URL → triggers a redeploy.
+# No CLI, no SDK — just one curl command.
+#
+# One-time setup:
+#   1. render.com → New → Web Service → connect GitHub → pick instachat
+#        Runtime:         Docker
+#        Dockerfile path: backend/Dockerfile
+#        Plan:            Free
+#   2. Your service → Settings → Deploy Hook → copy the URL
+#   3. GitHub repo → Settings → Secrets → Actions → New secret:
+#        RENDER_DEPLOY_HOOK_URL = <hook URL from step 2>
+#   4. (Optional but important) uptimerobot.com → New Monitor →
+#        HTTP(S), URL: https://<your-app>.onrender.com/health, interval: 5 min
+#        This pings every 5 min and prevents Render's free tier from sleeping.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -16,24 +24,19 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
-      - 'railway.toml'
+      - 'render.yaml'
       - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy to Railway
+    name: Deploy to Render
     runs-on: ubuntu-latest
-    # Skip if RAILWAY_TOKEN secret is not configured yet
-    if: ${{ secrets.RAILWAY_TOKEN != '' }}
+    # Skip gracefully if the hook secret isn't set yet
+    if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Railway CLI
+      - name: Trigger Render deploy
         run: |
-          curl -fsSL https://railway.app/install.sh | sh
-          echo "$HOME/.railway/bin" >> $GITHUB_PATH
-
-      - name: Deploy to Railway
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service instachat-backend --detach
+          echo "Triggering Render redeploy..."
+          curl --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "✓ Deploy triggered — check https://dashboard.render.com for build status"
