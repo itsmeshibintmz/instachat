@@ -1,17 +1,18 @@
 name: Deploy Backend
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Deploys the FastAPI backend to Fly.io (free tier) whenever backend code
-# changes on main.
-#
-# Fly.io free tier: 3 shared VMs + 3 GB volumes — no credit card needed.
+# Deploys the FastAPI backend to Koyeb (free tier — NO credit card needed).
 #
 # One-time setup:
-#   1. flyctl auth signup   (or flyctl auth login if you have an account)
-#   2. cd backend && flyctl launch --no-deploy   (creates app + volume)
-#   3. flyctl tokens create deploy -x 999999h   (long-lived deploy token)
+#   1. koyeb.com → Sign up with GitHub (no CC required)
+#   2. Dashboard → Create App → GitHub → pick instachat repo
+#        Builder:    Dockerfile
+#        Dockerfile: backend/Dockerfile
+#        Port:       8000
+#        Region:     any (pick closest)
+#   3. Dashboard → Account → API → New API Key
 #   4. GitHub repo → Settings → Secrets → Actions → New secret:
-#        FLY_API_TOKEN = <token from step 3>
+#        KOYEB_API_TOKEN = <key from step 3>
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -20,21 +21,25 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-backend.yml'
-  workflow_dispatch:   # allow manual re-deploy from GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy to Fly.io
+    name: Deploy to Koyeb
     runs-on: ubuntu-latest
-    # Skip gracefully if FLY_API_TOKEN secret is not yet configured
-    if: ${{ secrets.FLY_API_TOKEN != '' }}
+    if: ${{ secrets.KOYEB_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Install Koyeb CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/master/install.sh | sh
+          echo "$HOME/.koyeb/bin" >> $GITHUB_PATH
 
-      - name: Deploy to Fly.io
-        working-directory: backend
+      - name: Redeploy service
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --config fly.toml
+          KOYEB_TOKEN: ${{ secrets.KOYEB_API_TOKEN }}
+        run: |
+          # Trigger a redeploy of the existing service
+          # App + service names must match what you created in the dashboard
+          koyeb service redeploy instachat-backend/api

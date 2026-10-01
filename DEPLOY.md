@@ -1,107 +1,95 @@
-# Deploy InstaChat Backend — Free on Fly.io
+# Deploy InstaChat Backend — Free on Koyeb
 
-**Fly.io free tier:** 3 always-on VMs + 3 GB volumes — **no credit card required**.  
-After this 10-minute setup the backend runs 24/7 in the cloud — no MacBook needed.
+**Koyeb free tier:** 1 always-on nano instance — **no credit card, no catch**.  
+After this 5-minute setup the backend runs 24/7 — no MacBook needed.
 
----
-
-## 1 — Install flyctl (the Fly.io CLI)
-
-```bash
-# macOS
-brew install flyctl
-
-# or universal installer
-curl -L https://fly.io/install.sh | sh
-```
+> ⚠️ **Why not Fly.io?** Fly.io now requires a credit card even for the free tier.  
+> Koyeb is truly free with no payment method.
 
 ---
 
-## 2 — Sign up / log in (free)
+## 1 — Sign up on Koyeb (no CC)
 
-```bash
-flyctl auth signup   # creates a free account (no CC needed)
-# or
-flyctl auth login    # if you already have an account
-```
+Go to **[koyeb.com](https://www.koyeb.com)** → **Sign up** with GitHub.  
+No credit card asked.
 
 ---
 
-## 3 — Create the app and volume on Fly.io
+## 2 — Create the app (web dashboard — ~3 min)
 
-```bash
-cd backend
+1. Dashboard → **Create App**
+2. **Deployment method:** GitHub
+3. **Repository:** `instachat` | **Branch:** `main`
+4. **Builder:** Dockerfile
+5. **Dockerfile location:** `backend/Dockerfile`
+6. **Service name:** `api`
+7. **Port:** `8000`
+8. **Environment variables:** *(leave empty for now)*
+9. **App name:** `instachat-backend`
+10. Click **Deploy**
 
-# Launch the app (reads fly.toml — answer prompts, don't deploy yet)
-flyctl launch --no-deploy --config fly.toml
-
-# Create the persistent volume for Instagram sessions
-# (survives container restarts so you stay logged in)
-flyctl volumes create instachat_sessions --size 1 --region sin
-```
-
-> **Tip:** `sin` = Singapore. You can pick a closer region with `flyctl platform regions`.
-
----
-
-## 4 — Deploy
-
-```bash
-# Still in backend/
-flyctl deploy --config fly.toml
-```
-
-Watch the build logs. When it says `✓ Machine started`, the backend is live.
+Koyeb builds your Docker image and gives you a URL like:  
+`https://instachat-backend-<hash>.koyeb.app`
 
 ---
 
-## 5 — Get your public URL
+## 3 — Add a Persistent Volume for session storage
 
-```bash
-flyctl status --config fly.toml
-```
+Without this, your Instagram session is lost every time the container restarts.
 
-You'll see something like:
-```
-Hostname = instachat-backend.fly.dev
-```
-
-Your backend URL is: `https://instachat-backend.fly.dev`
+1. Dashboard → your service → **Volumes** → **Add Volume**
+2. **Mount path:** `/app/sessions`
+3. **Size:** 1 GB (free)
+4. Click **Save** → service redeploys
 
 ---
 
-## 6 — Add GitHub Secrets
+## 4 — Get your public URL
 
-These let GitHub Actions auto-deploy and bake the URL into every APK/IPA build.
+Dashboard → your app → **Domains** → copy the URL, e.g.:  
+`https://instachat-backend-abc123.koyeb.app`
+
+Test it: open `https://instachat-backend-abc123.koyeb.app/health` in a browser — you should see `{"status":"ok"}`.
+
+---
+
+## 5 — Add GitHub Secrets
 
 1. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**
 
-   | Secret name    | Value |
-   |----------------|-------|
-   | `BACKEND_URL`  | `https://instachat-backend.fly.dev` |
-   | `FLY_API_TOKEN`| output of `flyctl tokens create deploy -x 999999h` |
+   | Secret name       | Value |
+   |-------------------|-------|
+   | `BACKEND_URL`     | `https://instachat-backend-abc123.koyeb.app` |
+   | `KOYEB_API_TOKEN` | Koyeb Dashboard → Account → API → New API Key |
 
-2. Re-run the latest CI build (or push any commit to `main`) — the APK/IPA will be rebuilt with the cloud URL baked in.
-
----
-
-## 7 — First login
-
-Open the app → log in with your Instagram credentials.  
-The backend stores the session at `/app/sessions` (mounted volume).  
-You log in **once** — the session persists across restarts.
+2. Re-run the latest CI build (or push any commit to `main`) — APK/IPA rebuilt with the cloud URL baked in.
 
 ---
 
-## Koyeb (alternative — also 100% free)
+## 6 — First login
 
-If Fly.io doesn't work for you, [Koyeb](https://koyeb.com) also offers a free always-on instance with Docker:
+Open the app → enter your Instagram credentials.  
+The backend stores the session at `/app/sessions` (persistent volume).  
+You log in **once** — the session survives restarts.
 
-1. koyeb.com → New App → Docker → point to your GitHub repo
-2. Build command: `docker build -f backend/Dockerfile .`
-3. Port: `8000`
-4. Environment variable: `SESSION_DIR=/app/sessions`
-5. Add a Koyeb Persistent Volume at `/app/sessions`
+---
+
+## What about Google Fonts loading error in the app?
+
+The terminal showed font loading errors from `fonts.gstatic.com`. This means the fonts are downloaded at runtime (slow / fails on first run). Fix: bundle the fonts locally:
+
+```yaml
+# app/pubspec.yaml — under flutter: section
+flutter:
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+```
+
+But the app still works without this — it just falls back to the system font.
 
 ---
 
@@ -111,5 +99,9 @@ If Fly.io doesn't work for you, [Koyeb](https://koyeb.com) also offers a free al
 cd backend
 source .venv/bin/activate
 uvicorn app.main:app --reload
-# Flutter app auto-uses http://10.0.2.2:8000 (Android) / localhost (iOS)
+
+# On physical Android device via USB:
+adb reverse tcp:8000 tcp:8000
+# Run app with:
+flutter run --dart-define=BASE_URL=http://127.0.0.1:8000
 ```
