@@ -15,8 +15,8 @@ on:
         required: true
         type: string
       changelog:
-        description: "What's new  (Markdown supported)"
-        required: true
+        description: "What's new  (Markdown — leave blank to auto-generate from commits)"
+        required: false
         type: string
 
 # ── Jobs ─────────────────────────────────────────────────────────────────────
@@ -126,6 +126,32 @@ jobs:
           git tag "v${{ inputs.version }}" -m "InstaChat v${{ inputs.version }}"
           git push origin "v${{ inputs.version }}"
 
+      - name: Build changelog
+        id: notes
+        run: |
+          PROVIDED="${{ inputs.changelog }}"
+          if [ -n "$PROVIDED" ]; then
+            # User supplied notes — use as-is
+            {
+              echo "body<<EOF"
+              echo "$PROVIDED"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            # Auto-generate from git commits since previous tag
+            PREV=$(git tag --sort=-version:refname | grep -v "^latest$" | grep -v "^v${{ inputs.version }}$" | head -1)
+            if [ -n "$PREV" ]; then
+              LOG=$(git log "${PREV}..HEAD" --pretty=format:"- %s" --no-merges | head -40)
+            else
+              LOG=$(git log --pretty=format:"- %s" --no-merges | head -40)
+            fi
+            {
+              echo "body<<EOF"
+              echo "$LOG"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -149,7 +175,7 @@ jobs:
 
             ## 🆕 What's new
 
-            ${{ inputs.changelog }}
+            ${{ steps.notes.outputs.body }}
 
             ---
 
