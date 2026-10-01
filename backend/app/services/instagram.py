@@ -170,17 +170,20 @@ class InstagramService:
 
     def _handle_challenge(self) -> LoginResponse:
         """
-        Instagram sent an email/SMS challenge.
-        challenge_resolve() sends the code to the user's inbox, then calls
-        our handler which raises — that's expected at this stage.
+        Phase 1: Instagram sent a challenge.
+        challenge_resolve() selects EMAIL choice → Instagram emails the code
+        → our handler raises (expected) → we save the UPDATED last_json
+        (now in 'waiting for code' state) so Phase 2 can submit directly.
         """
-        self._pending_challenge = self._client.last_json
+        initial_challenge = self._client.last_json
         try:
-            self._client.challenge_resolve(self._pending_challenge)
+            self._client.challenge_resolve(initial_challenge)
         except ChallengeRequired:
-            pass   # expected — email sent, handler raised before submitting
+            # Email sent — save the updated state (step_name = verify_email_code)
+            self._pending_challenge = self._client.last_json.copy()
         except Exception as e:
-            logger.warning(f"challenge_resolve error (email may still have been sent): {e}")
+            logger.warning(f"challenge_resolve error: {e} — email may still have been sent")
+            self._pending_challenge = initial_challenge
 
         return LoginResponse(
             success=False,
@@ -190,14 +193,27 @@ class InstagramService:
 
     def _resolve_challenge(self, username: str, code: str) -> LoginResponse:
         """
-        Phase 2: submit the email/SMS code to resolve the challenge.
-        After a successful challenge, Instagram may still require 2FA
-        (Scenario D) — handle that too.
+        Phase 2: submit the email code WITHOUT resending the email.
+
+        Strategy: use challenge_resolve_simple() with the challenge URL from
+        the UPDATED pending_challenge (saved after email was sent in Phase 1).
+        This skips the email-choice step and goes straight to code submission,
+        avoiding the 'version out of date' error that occurs when
+        challenge_resolve() is called a second time with the full flow.
         """
         self._client.challenge_code_handler = lambda u, c: code
+        challenge_api_path = (
+            self._pending_challenge.get("challenge", {}).get("api_path") or ""
+        ).lstrip("/")
+
         try:
-            self._client.challenge_resolve(self._pending_challenge)
-            # Challenge accepted — check if Instagram now wants 2FA
+            if challenge_api_path:
+                # Direct code submission — no email resend, fewer API calls
+                self._client.challenge_resolve_simple(challenge_api_path)
+            else:
+                # Fallback: full resolve (may resend email)
+                self._client.challenge_resolve(self._pending_challenge)
+
             self._pending_challenge = None
             self._finalize_login(username)
             self._save_session()
@@ -205,9 +221,7 @@ class InstagramService:
             return self._build_login_response(success=True)
 
         except TwoFactorRequired:
-            # Challenge passed, but the account also has TOTP 2FA enabled.
-            # The next login call with verification_code will do fresh login
-            # with that code (pending_challenge is now None).
+            # Challenge passed but TOTP 2FA is also enabled (Scenario D)
             self._pending_challenge = None
             return LoginResponse(
                 success=False,
@@ -215,19 +229,22 @@ class InstagramService:
                 message="Challenge passed ✓ — now enter your authenticator app code.",
             )
         except ChallengeRequired:
-            # Wrong code — challenge still pending, let user retry
-            self._pending_challenge = self._client.last_json
+            # Wrong code — keep pending state so user can retry without starting over
+            self._pending_challenge = self._client.last_json or self._pending_challenge
             return LoginResponse(
                 success=False,
                 requires_challenge=True,
                 message="Incorrect code — check your email and try again.",
             )
         except Exception as e:
-            logger.error(f"Challenge resolve failed: {e}")
-            self._pending_challenge = None
+            err = str(e)
+            logger.error(f"Challenge resolve failed: {err}")
+            # Keep pending_challenge alive — user can retry with the same code
+            # or wait for a new email (don't force them to start over)
             return LoginResponse(
                 success=False,
-                message=f"Verification failed: {str(e)}",
+                requires_challenge=True,
+                message="Verification error — please try entering the code again.",
             )
 
     def logout(self):
