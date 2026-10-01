@@ -56,7 +56,7 @@ jobs:
       - run: flutter pub get
         working-directory: app
 
-      - run: flutter build apk --debug
+      - run: flutter build apk --debug --dart-define=BASE_URL=${{ secrets.BACKEND_URL }}
         working-directory: app
 
       - name: Rename APK
@@ -83,12 +83,7 @@ jobs:
             ### iOS — see `instachat-debug.ipa`
             Unsigned — sideload with [AltStore](https://altstore.io) or [Sideloadly](https://sideloadly.io).
 
-            ### Backend
-            ```bash
-            cd backend && source .venv/bin/activate
-            uvicorn app.main:app --host 0.0.0.0 --port 8000
-            adb reverse tcp:8000 tcp:8000   # USB tunnel for Android
-            ```
+            > Backend is cloud-hosted — no local server needed. Just install and log in.
           files: dist/instachat-debug.apk
 
   # ── iOS debug build ───────────────────────────────────────────────────────
@@ -109,7 +104,7 @@ jobs:
       - run: flutter pub get
         working-directory: app
 
-      - run: flutter build ipa --no-codesign
+      - run: flutter build ipa --no-codesign --dart-define=BASE_URL=${{ secrets.BACKEND_URL }}
         working-directory: app
 
       - name: Package xcarchive → IPA

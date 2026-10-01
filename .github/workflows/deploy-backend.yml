@@ -1,0 +1,39 @@
+name: Deploy Backend
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploys the FastAPI backend to Railway whenever backend code changes on main.
+#
+# Setup (one-time):
+#   1. railway.app → New Project → Deploy from GitHub repo
+#   2. Railway dashboard → your service → Settings → copy the Service ID
+#   3. Railway dashboard → Account Settings → Tokens → New Token
+#   4. GitHub repo → Settings → Secrets → Actions → add:
+#        RAILWAY_TOKEN  = <token from step 3>
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'railway.toml'
+      - '.github/workflows/deploy-backend.yml'
+
+jobs:
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    # Skip if RAILWAY_TOKEN secret is not configured yet
+    if: ${{ secrets.RAILWAY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service instachat-backend --detach

@@ -18,7 +18,8 @@ MEDIA_DIR.mkdir(exist_ok=True)
 
 # Server config
 HOST = os.getenv("INSTACHAT_HOST", "0.0.0.0")
-PORT = int(os.getenv("INSTACHAT_PORT", "8000"))
+# Railway / Render inject PORT; INSTACHAT_PORT is the local override
+PORT = int(os.getenv("PORT") or os.getenv("INSTACHAT_PORT", "8000"))
 
 # Instagram polling interval (seconds)
 POLL_INTERVAL = int(os.getenv("INSTACHAT_POLL_INTERVAL", "5"))

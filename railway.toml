@@ -1,0 +1,18 @@
+# ── Railway deployment configuration ─────────────────────────────────────────
+# Docs: https://docs.railway.app/reference/config-as-code
+
+[build]
+# Build from the backend sub-directory so the context is backend/
+builder      = "dockerfile"
+dockerfilePath = "backend/Dockerfile"
+
+[deploy]
+# Railway injects $PORT automatically — CMD in Dockerfile already handles this.
+healthcheckPath    = "/health"
+healthcheckTimeout = 30
+restartPolicyType  = "on_failure"
+restartPolicyMaxRetries = 5
+
+# Mount a Railway Volume at /app/sessions so Instagram sessions survive redeploys.
+# Create the volume in Railway dashboard → your service → Volumes → Add Volume
+# Mount path: /app/sessions
