@@ -193,48 +193,80 @@ class InstagramService:
 
     def _resolve_challenge(self, username: str, code: str) -> LoginResponse:
         """
-        Phase 2: submit the email code.
+        Phase 2: submit the email/SMS code directly.
 
-        Tries in order:
-          1. challenge_resolve_simple(challenge_url) — skips email-resend,
-             goes straight to step_name detection + code submission.
-          2. _send_private_request(challenge_url, security_code) — direct
-             POST if the simple resolver raises anything unexpected.
-          3. challenge_resolve(pending_challenge) — full flow fallback.
+        We SKIP challenge_resolve_simple() entirely because it ends with
+        hard assertions:
+            assert last_json.get("action") == "close"
+            assert last_json.get("status") == "ok"
+        Modern Instagram responses include logged_in_user but may omit
+        "action: close" → AssertionError → "Verification error".
 
-        _pending_challenge must be the ORIGINAL last_json (from Phase 1
-        before the email was sent) so it still contains challenge.api_path.
+        Instead we POST security_code directly to the challenge URL and
+        inspect whatever Instagram actually returns.
+
+        _pending_challenge is the ORIGINAL last_json (saved before Phase 1's
+        challenge_resolve runs) so challenge.api_path is still present.
         """
-        self._client.challenge_code_handler = lambda u, c: code.strip()
-
-        # Original challenge URL — present in the Phase-1 last_json
+        clean_code = code.strip()
+        # Original challenge URL — has "challenge" key from initial ChallengeRequired
         challenge_api_path = (
             self._pending_challenge.get("challenge", {}).get("api_path") or ""
         ).lstrip("/")
 
-        logger.info(f"Resolving challenge for {username}, url={challenge_api_path!r}")
+        logger.info(
+            f"Phase 2 for {username}: url={challenge_api_path!r}, "
+            f"last step={self._client.last_json.get('step_name')!r}"
+        )
 
         try:
             if challenge_api_path:
-                try:
-                    # Attempt 1: simple resolver — reads current step, submits code
-                    self._client.challenge_resolve_simple(challenge_api_path)
-                except Exception as e1:
-                    logger.warning(f"challenge_resolve_simple failed ({e1}), trying direct POST")
-                    # Attempt 2: direct security_code POST
-                    self._client._send_private_request(
-                        challenge_api_path,
-                        {"security_code": code.strip()}
+                # Direct POST — Instagram is already in verify_email_code state
+                self._client._send_private_request(
+                    challenge_api_path,
+                    {"security_code": clean_code},
+                )
+                last = self._client.last_json
+                logger.info(
+                    f"Security-code response: action={last.get('action')!r}, "
+                    f"status={last.get('status')!r}, "
+                    f"has_user={bool(last.get('logged_in_user'))}, "
+                    f"step={last.get('step_name')!r}"
+                )
+
+                # Any of these indicates the code was accepted
+                resolved = (
+                    last.get("action") == "close"
+                    or bool(last.get("logged_in_user"))
+                    or (last.get("status") == "ok" and not last.get("step_name"))
+                )
+                if not resolved:
+                    step = last.get("step_name", "unknown")
+                    raise ChallengeRequired(
+                        f"Code not accepted (step_name={step!r}): {last}"
                     )
+
+                # Try to seed user_id from the challenge response so we don't
+                # need an extra API round-trip (instagrapi may not set it yet)
+                logged_in_user = last.get("logged_in_user") or {}
+                if logged_in_user and not self._client.user_id:
+                    pk = logged_in_user.get("pk") or logged_in_user.get("id")
+                    if pk:
+                        try:
+                            self._client.user_id = int(pk)
+                        except Exception:
+                            pass
+
             else:
-                # No URL in pending_challenge — full resolve as last resort
+                # Fallback: no URL — shouldn't happen with the fixed _handle_challenge
+                logger.warning("No challenge_api_path in _pending_challenge — using full resolve")
+                self._client.challenge_code_handler = lambda u, c: clean_code
                 self._client.challenge_resolve(self._pending_challenge)
 
-            # If we reach here, challenge is resolved
             self._pending_challenge = None
             self._finalize_login(username)
             self._save_session()
-            logger.info(f"Challenge resolved and logged in: {username}")
+            logger.info(f"Challenge resolved, logged in: {username}")
             return self._build_login_response(success=True)
 
         except TwoFactorRequired:
@@ -245,20 +277,22 @@ class InstagramService:
                 requires_2fa=True,
                 message="Challenge passed ✓ — now enter your authenticator app code.",
             )
-        except ChallengeRequired:
-            # Wrong code — keep pending state so user can retry
-            updated = self._client.last_json
-            if updated and updated.get("challenge", {}).get("api_path"):
-                self._pending_challenge = updated
+        except ChallengeRequired as e:
+            msg = str(e)
+            # Distinguish wrong-code from other challenge errors
+            if "step_name" in msg or "not accepted" in msg:
+                display = "Incorrect code — check your email and try again."
+            else:
+                display = "Verification failed — please try again."
+            logger.warning(f"ChallengeRequired in Phase 2: {msg}")
             return LoginResponse(
                 success=False,
                 requires_challenge=True,
-                message="Incorrect code — check your email and try again.",
+                message=display,
             )
         except Exception as e:
-            logger.error(f"All challenge resolution attempts failed: {e}")
-            # Keep _pending_challenge alive — do NOT reset to None so the
-            # user can retry without triggering a 30-second fresh login.
+            logger.error(f"Phase 2 failed ({type(e).__name__}): {e}")
+            # Keep _pending_challenge alive — do NOT reset to None
             return LoginResponse(
                 success=False,
                 requires_challenge=True,
