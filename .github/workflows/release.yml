@@ -128,27 +128,36 @@ jobs:
 
       - name: Build changelog
         id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PROVIDED="${{ inputs.changelog }}"
           if [ -n "$PROVIDED" ]; then
-            # User supplied notes — use as-is
+            # User supplied notes — use verbatim
             {
-              echo "body<<EOF"
-              echo "$PROVIDED"
-              echo "EOF"
+              printf 'body<<%s\n' "EOF"
+              printf '%s\n' "$PROVIDED"
+              printf '%s\n' "EOF"
             } >> "$GITHUB_OUTPUT"
           else
-            # Auto-generate from git commits since previous tag
-            PREV=$(git tag --sort=-version:refname | grep -v "^latest$" | grep -v "^v${{ inputs.version }}$" | head -1)
-            if [ -n "$PREV" ]; then
-              LOG=$(git log "${PREV}..HEAD" --pretty=format:"- %s" --no-merges | head -40)
-            else
-              LOG=$(git log --pretty=format:"- %s" --no-merges | head -40)
-            fi
+            # Auto-generate from merged PR titles using GitHub API
+            # Find the previous versioned tag (exclude 'latest' rolling tag)
+            PREV=$(git tag --sort=-version:refname \
+              | grep -v "^latest$" \
+              | grep -v "^v${{ inputs.version }}$" \
+              | head -1)
+
+            # Call GitHub's generate-notes endpoint
+            PAYLOAD=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+              --method POST \
+              --field tag_name="v${{ inputs.version }}" \
+              ${PREV:+--field previous_tag_name="$PREV"} \
+              --jq '.body')
+
             {
-              echo "body<<EOF"
-              echo "$LOG"
-              echo "EOF"
+              printf 'body<<%s\n' "EOF"
+              printf '%s\n' "$PAYLOAD"
+              printf '%s\n' "EOF"
             } >> "$GITHUB_OUTPUT"
           fi
 
