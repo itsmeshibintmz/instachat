@@ -171,19 +171,19 @@ class InstagramService:
     def _handle_challenge(self) -> LoginResponse:
         """
         Phase 1: Instagram sent a challenge.
-        challenge_resolve() selects EMAIL choice → Instagram emails the code
-        → our handler raises (expected) → we save the UPDATED last_json
-        (now in 'waiting for code' state) so Phase 2 can submit directly.
+        We save the ORIGINAL last_json (contains challenge.api_path needed
+        by Phase 2) then call challenge_resolve() to trigger the email send.
+        Our handler raises after the email is sent — that's expected.
         """
-        initial_challenge = self._client.last_json
+        # Save ORIGINAL last_json — it has the "challenge" key with api_path.
+        # Phase 2 needs this to call challenge_resolve_simple(challenge_url).
+        self._pending_challenge = self._client.last_json.copy()
         try:
-            self._client.challenge_resolve(initial_challenge)
+            self._client.challenge_resolve(self._pending_challenge)
         except ChallengeRequired:
-            # Email sent — save the updated state (step_name = verify_email_code)
-            self._pending_challenge = self._client.last_json.copy()
+            pass  # expected — email sent, our handler raised before code submit
         except Exception as e:
             logger.warning(f"challenge_resolve error: {e} — email may still have been sent")
-            self._pending_challenge = initial_challenge
 
         return LoginResponse(
             success=False,
@@ -193,27 +193,44 @@ class InstagramService:
 
     def _resolve_challenge(self, username: str, code: str) -> LoginResponse:
         """
-        Phase 2: submit the email code WITHOUT resending the email.
+        Phase 2: submit the email code.
 
-        Strategy: use challenge_resolve_simple() with the challenge URL from
-        the UPDATED pending_challenge (saved after email was sent in Phase 1).
-        This skips the email-choice step and goes straight to code submission,
-        avoiding the 'version out of date' error that occurs when
-        challenge_resolve() is called a second time with the full flow.
+        Tries in order:
+          1. challenge_resolve_simple(challenge_url) — skips email-resend,
+             goes straight to step_name detection + code submission.
+          2. _send_private_request(challenge_url, security_code) — direct
+             POST if the simple resolver raises anything unexpected.
+          3. challenge_resolve(pending_challenge) — full flow fallback.
+
+        _pending_challenge must be the ORIGINAL last_json (from Phase 1
+        before the email was sent) so it still contains challenge.api_path.
         """
-        self._client.challenge_code_handler = lambda u, c: code
+        self._client.challenge_code_handler = lambda u, c: code.strip()
+
+        # Original challenge URL — present in the Phase-1 last_json
         challenge_api_path = (
             self._pending_challenge.get("challenge", {}).get("api_path") or ""
         ).lstrip("/")
 
+        logger.info(f"Resolving challenge for {username}, url={challenge_api_path!r}")
+
         try:
             if challenge_api_path:
-                # Direct code submission — no email resend, fewer API calls
-                self._client.challenge_resolve_simple(challenge_api_path)
+                try:
+                    # Attempt 1: simple resolver — reads current step, submits code
+                    self._client.challenge_resolve_simple(challenge_api_path)
+                except Exception as e1:
+                    logger.warning(f"challenge_resolve_simple failed ({e1}), trying direct POST")
+                    # Attempt 2: direct security_code POST
+                    self._client._send_private_request(
+                        challenge_api_path,
+                        {"security_code": code.strip()}
+                    )
             else:
-                # Fallback: full resolve (may resend email)
+                # No URL in pending_challenge — full resolve as last resort
                 self._client.challenge_resolve(self._pending_challenge)
 
+            # If we reach here, challenge is resolved
             self._pending_challenge = None
             self._finalize_login(username)
             self._save_session()
@@ -229,22 +246,23 @@ class InstagramService:
                 message="Challenge passed ✓ — now enter your authenticator app code.",
             )
         except ChallengeRequired:
-            # Wrong code — keep pending state so user can retry without starting over
-            self._pending_challenge = self._client.last_json or self._pending_challenge
+            # Wrong code — keep pending state so user can retry
+            updated = self._client.last_json
+            if updated and updated.get("challenge", {}).get("api_path"):
+                self._pending_challenge = updated
             return LoginResponse(
                 success=False,
                 requires_challenge=True,
                 message="Incorrect code — check your email and try again.",
             )
         except Exception as e:
-            err = str(e)
-            logger.error(f"Challenge resolve failed: {err}")
-            # Keep pending_challenge alive — user can retry with the same code
-            # or wait for a new email (don't force them to start over)
+            logger.error(f"All challenge resolution attempts failed: {e}")
+            # Keep _pending_challenge alive — do NOT reset to None so the
+            # user can retry without triggering a 30-second fresh login.
             return LoginResponse(
                 success=False,
                 requires_challenge=True,
-                message="Verification error — please try entering the code again.",
+                message=f"Verification error ({type(e).__name__}) — try the code again.",
             )
 
     def logout(self):
