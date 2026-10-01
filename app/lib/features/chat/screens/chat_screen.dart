@@ -27,8 +27,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ref.read(messagesProvider(widget.thread.threadId).notifier).fetchMessages();
     });
 
-    // Auto-refresh every 5 seconds
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    // Fallback poll every 30 s (WebSocket handles real-time updates;
+    // this catches anything missed if the WS drops temporarily).
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         ref
             .read(messagesProvider(widget.thread.threadId).notifier)
